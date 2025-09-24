@@ -17,7 +17,6 @@
 package com.android.tools.build.bundletool.splitters;
 
 import static com.android.tools.build.bundletool.model.utils.Versions.ANDROID_Q_API_VERSION;
-import static com.android.tools.build.bundletool.model.utils.Versions.ANDROID_S_API_VERSION;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.androidManifest;
 import static com.android.tools.build.bundletool.testing.TargetingUtils.variantMinSdkTargeting;
 import static com.google.common.collect.ImmutableList.toImmutableList;
@@ -32,10 +31,12 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import org.junit.Test;
+import org.junit.experimental.theories.DataPoints;
+import org.junit.experimental.theories.Theories;
+import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
 
-@RunWith(JUnit4.class)
+@RunWith(Theories.class)
 public class DexCompressionVariantGeneratorTest {
   @Test
   public void variantsGeneration_withDexFile_generatesQVariant() throws Exception {
@@ -49,21 +50,39 @@ public class DexCompressionVariantGeneratorTest {
     assertThat(splits).containsExactly(variantMinSdkTargeting(ANDROID_Q_API_VERSION));
   }
 
-  @Test
-  public void variantsGeneration_withDexFile_generatesSVariant() throws Exception {
+  private static final class UncompressedDexTestData {
+    final UncompressedDexTargetSdk targetSdk;
+    final int expectedSdkVersion;
+
+    UncompressedDexTestData(UncompressedDexTargetSdk targetSdk, int expectedSdkVersion) {
+      this.targetSdk = targetSdk;
+      this.expectedSdkVersion = expectedSdkVersion;
+    }
+  }
+
+  @DataPoints
+  public static final UncompressedDexTestData[] UNCOMPRESSED_DEX_TEST_DATA =
+      new UncompressedDexTestData[] {
+        new UncompressedDexTestData(UncompressedDexTargetSdk.SDK_31, 31),
+        new UncompressedDexTestData(UncompressedDexTargetSdk.SDK_33, 33)
+      };
+
+  @Theory
+  public void variantsGeneration_withDexFile_generatesVariantForTargetSdk(
+      UncompressedDexTestData testData) throws Exception {
     DexCompressionVariantGenerator dexCompressionVariantGenerator =
         new DexCompressionVariantGenerator(
             ApkGenerationConfiguration.builder()
                 .setEnableDexCompressionSplitter(true)
-                .setDexCompressionSplitterForTargetSdk(UncompressedDexTargetSdk.SDK_31)
+                .setDexCompressionSplitterForTargetSdk(testData.targetSdk)
                 .build());
     ImmutableList<VariantTargeting> splits =
         dexCompressionVariantGenerator
             .generate(createModuleWithDexFile())
             .collect(toImmutableList());
-    // If UncompressedDexTargetSdk and EnableDexCompressionSplitter are both set, we create an S+
-    // variant.
-    assertThat(splits).containsExactly(variantMinSdkTargeting(ANDROID_S_API_VERSION));
+    // If UncompressedDexTargetSdk and EnableDexCompressionSplitter are both set, we create a
+    // variant for the specified target SDK.
+    assertThat(splits).containsExactly(variantMinSdkTargeting(testData.expectedSdkVersion));
   }
 
   @Test

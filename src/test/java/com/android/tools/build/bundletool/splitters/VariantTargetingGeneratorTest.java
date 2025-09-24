@@ -43,10 +43,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
+import org.junit.experimental.theories.DataPoints;
+import org.junit.experimental.theories.Theories;
+import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
 
-@RunWith(JUnit4.class)
+@RunWith(Theories.class)
 public class VariantTargetingGeneratorTest {
 
   private static final XmlNode ANDROID_MANIFEST = androidManifest("com.test.app");
@@ -92,15 +94,33 @@ public class VariantTargetingGeneratorTest {
             variantMinSdkTargeting(ANDROID_Q_API_VERSION));
   }
 
-  @Test
-  public void generateVariantTargetings_generatesSVariantForUncompressedDex() {
+  private static final class UncompressedDexTestData {
+    final UncompressedDexTargetSdk targetSdk;
+    final int expectedSdkVersion;
+
+    UncompressedDexTestData(UncompressedDexTargetSdk targetSdk, int expectedSdkVersion) {
+      this.targetSdk = targetSdk;
+      this.expectedSdkVersion = expectedSdkVersion;
+    }
+  }
+
+  @DataPoints
+  public static final UncompressedDexTestData[] UNCOMPRESSED_DEX_TEST_DATA =
+      new UncompressedDexTestData[] {
+        new UncompressedDexTestData(UncompressedDexTargetSdk.SDK_31, 31),
+        new UncompressedDexTestData(UncompressedDexTargetSdk.SDK_33, 33)
+      };
+
+  @Theory
+  public void generateVariantTargetings_generatesVariantForUncompressedDex(
+      UncompressedDexTestData testData) {
     VariantTargetingGenerator variantTargetingGenerator =
         new VariantTargetingGenerator(
             new PerModuleVariantTargetingGenerator(), new SdkRuntimeVariantGenerator(APP_BUNDLE));
     ApkGenerationConfiguration apkGenerationConfiguration =
         ApkGenerationConfiguration.builder()
             .setEnableDexCompressionSplitter(true)
-            .setDexCompressionSplitterForTargetSdk(UncompressedDexTargetSdk.SDK_31)
+            .setDexCompressionSplitterForTargetSdk(testData.targetSdk)
             .build();
 
     ImmutableSet<VariantTargeting> splits =
@@ -112,8 +132,8 @@ public class VariantTargetingGeneratorTest {
         .containsExactly(
             // L+ variant is always generated.
             lPlusVariantTargeting(),
-            // S+ variant generated for the module with the dex file.
-            variantMinSdkTargeting(ANDROID_S_API_VERSION));
+            // S+ or T+ variant generated for the module with the dex file.
+            variantMinSdkTargeting(testData.expectedSdkVersion));
   }
 
   @Test

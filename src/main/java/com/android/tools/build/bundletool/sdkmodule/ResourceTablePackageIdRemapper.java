@@ -211,6 +211,10 @@ final class ResourceTablePackageIdRemapper {
       return;
     }
     remapInReference(styleEntry.getKeyBuilder());
+
+    if (styleEntry.hasItem()) {
+      remapInItem(styleEntry.getItemBuilder());
+    }
   }
 
   private void remapInStyleableEntry(Styleable.Entry.Builder styleableEntry) {

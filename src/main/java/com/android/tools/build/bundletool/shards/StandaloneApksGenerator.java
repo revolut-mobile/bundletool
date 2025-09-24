@@ -22,8 +22,10 @@ import static com.google.common.collect.ImmutableListMultimap.toImmutableListMul
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 
+import com.android.bundle.Config.StandaloneConfig.FeatureModulesMode;
 import com.android.bundle.Targeting;
 import com.android.bundle.Targeting.ApkTargeting;
+import com.android.tools.build.bundletool.commands.BuildApksCommand.ApkBuildMode;
 import com.android.tools.build.bundletool.mergers.AndroidManifestMerger;
 import com.android.tools.build.bundletool.mergers.ModuleSplitsToShardMerger;
 import com.android.tools.build.bundletool.model.AndroidManifest;
@@ -102,7 +104,9 @@ public class StandaloneApksGenerator {
    * </ul>
    */
   public ImmutableList<ModuleSplit> generateStandaloneApks(
-      ImmutableList<BundleModule> modules, ApkOptimizations apkOptimizations) {
+      ImmutableList<BundleModule> modules,
+      ApkOptimizations apkOptimizations,
+      ApkBuildMode apkBuildMode) {
     // Generate a flat list of splits from all input modules.
     ImmutableList<ModuleSplit> splits =
         modules.stream()
@@ -113,15 +117,12 @@ public class StandaloneApksGenerator {
                         .stream())
             .collect(toImmutableList());
 
-    switch (appBundle
-        .getBundleConfig()
-        .getOptimizations()
-        .getStandaloneConfig()
-        .getFeatureModulesMode()) {
-      case SEPARATE_FEATURE_MODULES:
+    if (appBundle.getBundleConfig().getOptimizations().getStandaloneConfig().getFeatureModulesMode()
+            == FeatureModulesMode.SEPARATE_FEATURE_MODULES
+        && apkBuildMode != ApkBuildMode.UNIVERSAL) {
         return generateStandaloneApkWithStandaloneFeatureModules(splits);
-      default:
-        return generateStandaloneApkWithFusedModule(splits);
+    } else {
+      return generateStandaloneApkWithFusedModule(splits);
     }
   }
 

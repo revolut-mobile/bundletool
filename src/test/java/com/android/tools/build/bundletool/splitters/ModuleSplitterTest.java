@@ -2615,6 +2615,149 @@ public class ModuleSplitterTest {
   }
 
   @Test
+  public void split_injectMinSdkEnabled_minSdkInjected() {
+    BundleModule bundleModule =
+        new BundleModuleBuilder("testModule")
+            .addFile("res/drawable-hdpi/image.jpg")
+            .addFile("res/drawable/image.jpg")
+            .setResourceTable(
+                resourceTable(
+                    pkg(
+                        USER_PACKAGE_OFFSET,
+                        "com.test.app",
+                        type(
+                            0x01,
+                            "drawable",
+                            entry(
+                                0x01,
+                                "image",
+                                fileReference("res/drawable-hdpi/image.jpg", HDPI),
+                                fileReference(
+                                    "res/drawable/image.jpg",
+                                    Configuration.getDefaultInstance()))))))
+            .setManifest(androidManifest("com.test.app"))
+            .build();
+    ApkGenerationConfiguration apkGenerationConfiguration =
+        withOptimizationDimensions(ImmutableSet.of(SCREEN_DENSITY)).toBuilder()
+            .setInjectMinSdk(true)
+            .build();
+
+    ImmutableList<ModuleSplit> splits =
+        ModuleSplitter.createNoStamp(
+                bundleModule,
+                BUNDLETOOL_VERSION,
+                APP_BUNDLE,
+                apkGenerationConfiguration,
+                lPlusVariantTargeting(),
+                ImmutableSet.of(bundleModule.getName().getName()))
+            .splitModule();
+
+    ImmutableMap<String, ModuleSplit> splitsBySuffix =
+        Maps.uniqueIndex(splits, ModuleSplit::getSuffix);
+    // Config split
+    assertThat(splitsBySuffix.get("hdpi").getAndroidManifest().getMinSdkVersion())
+        .hasValue(Versions.ANDROID_L_API_VERSION);
+    // Main split
+    assertThat(splitsBySuffix.get("").getAndroidManifest().getMinSdkVersion())
+        .hasValue(Versions.ANDROID_L_API_VERSION);
+  }
+
+  @Test
+  public void split_injectMinSdkEnabledButExistingMinSdkHigher_minSdkNotInjected() {
+    BundleModule bundleModule =
+        new BundleModuleBuilder("testModule")
+            .addFile("res/drawable-hdpi/image.jpg")
+            .addFile("res/drawable/image.jpg")
+            .setResourceTable(
+                resourceTable(
+                    pkg(
+                        USER_PACKAGE_OFFSET,
+                        "com.test.app",
+                        type(
+                            0x01,
+                            "drawable",
+                            entry(
+                                0x01,
+                                "image",
+                                fileReference("res/drawable-hdpi/image.jpg", HDPI),
+                                fileReference(
+                                    "res/drawable/image.jpg",
+                                    Configuration.getDefaultInstance()))))))
+            .setManifest(
+                androidManifest("com.test.app", withMinSdkVersion(Versions.ANDROID_S_API_VERSION)))
+            .build();
+    ApkGenerationConfiguration apkGenerationConfiguration =
+        withOptimizationDimensions(ImmutableSet.of(SCREEN_DENSITY)).toBuilder()
+            .setInjectMinSdk(true)
+            .build();
+
+    ImmutableList<ModuleSplit> splits =
+        ModuleSplitter.createNoStamp(
+                bundleModule,
+                BUNDLETOOL_VERSION,
+                APP_BUNDLE,
+                apkGenerationConfiguration,
+                lPlusVariantTargeting(),
+                ImmutableSet.of(bundleModule.getName().getName()))
+            .splitModule();
+
+    ImmutableMap<String, ModuleSplit> splitsBySuffix =
+        Maps.uniqueIndex(splits, ModuleSplit::getSuffix);
+    // Config split
+    assertThat(splitsBySuffix.get("hdpi").getAndroidManifest().getMinSdkVersion())
+        .hasValue(Versions.ANDROID_S_API_VERSION);
+    // Main split
+    assertThat(splitsBySuffix.get("").getAndroidManifest().getMinSdkVersion())
+        .hasValue(Versions.ANDROID_S_API_VERSION);
+  }
+
+  @Test
+  public void split_injectMinSdkDisabled_minSdkNotInjected() {
+    BundleModule bundleModule =
+        new BundleModuleBuilder("testModule")
+            .addFile("res/drawable-hdpi/image.jpg")
+            .addFile("res/drawable/image.jpg")
+            .setResourceTable(
+                resourceTable(
+                    pkg(
+                        USER_PACKAGE_OFFSET,
+                        "com.test.app",
+                        type(
+                            0x01,
+                            "drawable",
+                            entry(
+                                0x01,
+                                "image",
+                                fileReference("res/drawable-hdpi/image.jpg", HDPI),
+                                fileReference(
+                                    "res/drawable/image.jpg",
+                                    Configuration.getDefaultInstance()))))))
+            .setManifest(androidManifest("com.test.app"))
+            .build();
+    ApkGenerationConfiguration apkGenerationConfiguration =
+        withOptimizationDimensions(ImmutableSet.of(SCREEN_DENSITY)).toBuilder()
+            .setInjectMinSdk(false)
+            .build();
+
+    ImmutableList<ModuleSplit> splits =
+        ModuleSplitter.createNoStamp(
+                bundleModule,
+                BUNDLETOOL_VERSION,
+                APP_BUNDLE,
+                apkGenerationConfiguration,
+                lPlusVariantTargeting(),
+                ImmutableSet.of(bundleModule.getName().getName()))
+            .splitModule();
+
+    ImmutableMap<String, ModuleSplit> splitsBySuffix =
+        Maps.uniqueIndex(splits, ModuleSplit::getSuffix);
+    // Config split
+    assertThat(splitsBySuffix.get("hdpi").getAndroidManifest().getMinSdkVersion()).isEmpty();
+    // Main split
+    assertThat(splitsBySuffix.get("").getAndroidManifest().getMinSdkVersion()).isEmpty();
+  }
+
+  @Test
   public void bundleHasdSdkDeps_nonSdkRuntimeVariant_baseModule_mainSplit_sdkTableConfigInjected() {
     RuntimeEnabledSdkConfig runtimeEnabledSdkConfig =
         RuntimeEnabledSdkConfig.newBuilder()

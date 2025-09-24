@@ -86,6 +86,7 @@ import com.android.bundle.Targeting.ApkTargeting;
 import com.android.bundle.Targeting.ScreenDensity.DensityAlias;
 import com.android.bundle.Targeting.TextureCompressionFormat.TextureCompressionFormatAlias;
 import com.android.bundle.Targeting.VariantTargeting;
+import com.android.tools.build.bundletool.commands.BuildApksCommand.ApkBuildMode;
 import com.android.tools.build.bundletool.commands.BuildApksModule;
 import com.android.tools.build.bundletool.commands.CommandScoped;
 import com.android.tools.build.bundletool.model.AppBundle;
@@ -126,6 +127,8 @@ public class StandaloneApksGeneratorTest {
           .setSplitDimensions(ImmutableSet.of())
           .setStandaloneDimensions(ImmutableSet.of())
           .build();
+
+  private static final ApkBuildMode DEFAULT_BUILD_MODE = ApkBuildMode.DEFAULT;
 
   private static final VariantTargeting VARIANT_TARGETING_WITH_SDK_1 = variantSdkTargeting(1);
 
@@ -216,7 +219,7 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), NO_DIMENSIONS);
+            ImmutableList.of(bundleModule), NO_DIMENSIONS, DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -261,7 +264,7 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), NO_DIMENSIONS);
+            ImmutableList.of(bundleModule), NO_DIMENSIONS, DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     assertThat(extractPaths(shards.get(0).getEntries()))
@@ -292,7 +295,7 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), NO_DIMENSIONS);
+            ImmutableList.of(bundleModule), NO_DIMENSIONS, DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -339,7 +342,9 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), standaloneApkOptimizations(OptimizationDimension.ABI));
+            ImmutableList.of(bundleModule),
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -387,7 +392,9 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), standaloneApkOptimizations(OptimizationDimension.ABI));
+            ImmutableList.of(bundleModule),
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -441,7 +448,9 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), standaloneApkOptimizations(OptimizationDimension.ABI));
+            ImmutableList.of(bundleModule),
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(3);
     assertThat(shards.stream().map(ModuleSplit::getSplitType).distinct().collect(toImmutableSet()))
@@ -535,7 +544,9 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), standaloneApkOptimizations(OptimizationDimension.ABI));
+            ImmutableList.of(bundleModule),
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(3);
     assertThat(shards.stream().map(ModuleSplit::getSplitType).distinct().collect(toImmutableSet()))
@@ -601,7 +612,9 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), standaloneApkOptimizations(OptimizationDimension.ABI));
+            ImmutableList.of(bundleModule),
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -634,7 +647,8 @@ public class StandaloneApksGeneratorTest {
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(bundleModule),
-            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY));
+            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit shard = shards.get(0);
@@ -677,7 +691,8 @@ public class StandaloneApksGeneratorTest {
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(bundleModule),
-            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY));
+            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit shard = shards.get(0);
@@ -725,7 +740,8 @@ public class StandaloneApksGeneratorTest {
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(bundleModule),
-            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY));
+            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit shard = shards.get(0);
@@ -756,7 +772,8 @@ public class StandaloneApksGeneratorTest {
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(bundleModule),
             standaloneApkOptimizations(
-                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY));
+                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -800,7 +817,8 @@ public class StandaloneApksGeneratorTest {
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(bundleModule),
             standaloneApkOptimizations(
-                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY));
+                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     // 7 shards: {x86} x {LDPI, MDPI, ..., XXXHDPI}.
     assertThat(shards).hasSize(7);
@@ -875,7 +893,8 @@ public class StandaloneApksGeneratorTest {
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(bundleModule),
             standaloneApkOptimizations(
-                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY));
+                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     // 7 shards: {x86} x {LDPI, MDPI, ..., XXXHDPI}.
     assertThat(shards).hasSize(7);
@@ -929,7 +948,8 @@ public class StandaloneApksGeneratorTest {
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(bundleModule),
             standaloneApkOptimizations(
-                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY));
+                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(3 * 7);
     assertThat(shards.stream().map(ModuleSplit::getSplitType).distinct().collect(toImmutableSet()))
@@ -1080,7 +1100,7 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(baseModule, featureModule), NO_DIMENSIONS);
+            ImmutableList.of(baseModule, featureModule), NO_DIMENSIONS, DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatApk = shards.get(0);
@@ -1159,7 +1179,7 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(baseModule, featureModule), NO_DIMENSIONS);
+            ImmutableList.of(baseModule, featureModule), NO_DIMENSIONS, DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(2);
     ModuleSplit baseApk = shards.get(0);
@@ -1244,7 +1264,8 @@ public class StandaloneApksGeneratorTest {
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(baseModule, featureModule),
             standaloneApkOptimizations(
-                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY));
+                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(28); // 2 modules each in 2 ABIs and 7 DPIs.
 
@@ -1357,7 +1378,7 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(baseModule, featureModule), NO_DIMENSIONS);
+            ImmutableList.of(baseModule, featureModule), NO_DIMENSIONS, DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatApk = shards.get(0);
@@ -1398,7 +1419,8 @@ public class StandaloneApksGeneratorTest {
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(baseModule, featureModule1, featureModule2),
-            standaloneApkOptimizations(OptimizationDimension.ABI));
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit shard = shards.get(0);
@@ -1444,7 +1466,8 @@ public class StandaloneApksGeneratorTest {
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(baseModule, featureModule1, featureModule2),
-            standaloneApkOptimizations(OptimizationDimension.ABI));
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(2);
     assertThat(shards.stream().map(ModuleSplit::getSplitType).distinct().collect(toImmutableSet()))
@@ -1490,7 +1513,8 @@ public class StandaloneApksGeneratorTest {
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(baseModule, featureModule),
-            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY));
+            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -1541,7 +1565,8 @@ public class StandaloneApksGeneratorTest {
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(baseModule, featureModule),
-            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY));
+            standaloneApkOptimizations(OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit shard = shards.get(0);
@@ -1575,7 +1600,8 @@ public class StandaloneApksGeneratorTest {
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(baseModule, featureModule),
             standaloneApkOptimizations(
-                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY));
+                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -1623,7 +1649,8 @@ public class StandaloneApksGeneratorTest {
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(baseModule, featureModule),
             standaloneApkOptimizations(
-                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY));
+                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(2 * 7);
     assertThat(shards.stream().map(ModuleSplit::getSplitType).distinct().collect(toImmutableSet()))
@@ -1737,7 +1764,8 @@ public class StandaloneApksGeneratorTest {
         standaloneApksGenerator.generateStandaloneApks(
             ImmutableList.of(baseModule, assetModule),
             standaloneApkOptimizations(
-                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY));
+                OptimizationDimension.ABI, OptimizationDimension.SCREEN_DENSITY),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     ModuleSplit fatShard = shards.get(0);
@@ -1770,7 +1798,9 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), standaloneApkOptimizations(OptimizationDimension.ABI));
+            ImmutableList.of(bundleModule),
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     assertThat(shards).hasSize(1);
     assertThat(shards.get(0).getSplitType()).isEqualTo(SplitType.STANDALONE);
@@ -1808,7 +1838,9 @@ public class StandaloneApksGeneratorTest {
 
     ImmutableList<ModuleSplit> shards =
         standaloneApksGenerator.generateStandaloneApks(
-            ImmutableList.of(bundleModule), standaloneApkOptimizations(OptimizationDimension.ABI));
+            ImmutableList.of(bundleModule),
+            standaloneApkOptimizations(OptimizationDimension.ABI),
+            DEFAULT_BUILD_MODE);
 
     shards.forEach(
         shard ->
@@ -1823,6 +1855,85 @@ public class StandaloneApksGeneratorTest {
                                             RuntimeEnabledSdkTableInjector
                                                 .RUNTIME_ENABLED_SDK_TABLE_FILE_PATH))))
                 .hasSize(1));
+  }
+
+  @Test
+  public void twoModules_separateFeatureModulesEnabled_universalMode_producesOneApk()
+      throws Exception {
+    BundleModule baseModule =
+        new BundleModuleBuilder("base")
+            .addFile("lib/x86_64/libtest1.so")
+            .addFile("lib/x86/libtest1.so")
+            .setNativeConfig(
+                nativeLibraries(
+                    targetedNativeDirectory("lib/x86_64", nativeDirectoryTargeting(X86_64)),
+                    targetedNativeDirectory("lib/x86", nativeDirectoryTargeting(X86))))
+            .addFile("res/drawable-ldpi/image1.jpg")
+            .setResourceTable(
+                resourceTable(
+                    pkg(
+                        USER_PACKAGE_OFFSET,
+                        "com.test.app",
+                        type(
+                            0x01,
+                            "drawable",
+                            entry(
+                                0x01,
+                                "image1",
+                                fileReference("res/drawable-ldpi/image1.jpg", LDPI))))))
+            .setManifest(androidManifest("com.test.app"))
+            .build();
+    BundleModule featureModule =
+        new BundleModuleBuilder("feature")
+            .addFile("lib/x86_64/libtest2.so")
+            .setNativeConfig(
+                nativeLibraries(
+                    targetedNativeDirectory("lib/x86_64", nativeDirectoryTargeting(X86_64))))
+            .addFile("res/drawable-ldpi/image2.jpg")
+            .setResourceTable(
+                resourceTable(
+                    pkg(
+                        USER_PACKAGE_OFFSET + 1,
+                        "com.test.app.split",
+                        type(
+                            0x01,
+                            "drawable",
+                            entry(
+                                0x01,
+                                "image2",
+                                fileReference("res/drawable-ldpi/image2.jpg", LDPI))))))
+            .setManifest(androidManifestForFeature("com.test.app"))
+            .build();
+    AppBundle appBundle =
+        new AppBundleBuilder()
+            .setBundleConfig(
+                BundleConfigBuilder.create()
+                    .setFeatureModulesModeForStandalone(FeatureModulesMode.SEPARATE_FEATURE_MODULES)
+                    .build())
+            .addModule(baseModule)
+            .addModule(featureModule)
+            .build();
+    TestComponent.useTestModule(this, TestModule.builder().withAppBundle(appBundle).build());
+
+    ImmutableList<ModuleSplit> shards =
+        standaloneApksGenerator.generateStandaloneApks(
+            ImmutableList.of(baseModule, featureModule), NO_DIMENSIONS, ApkBuildMode.UNIVERSAL);
+
+    assertThat(shards).hasSize(1);
+    ModuleSplit universalApk = shards.get(0);
+    assertThat(extractPaths(universalApk.getEntries()))
+        .containsExactly(
+            "lib/x86_64/libtest1.so",
+            "lib/x86/libtest1.so",
+            "res/drawable-ldpi/image1.jpg",
+            "lib/x86_64/libtest2.so",
+            "res/drawable-ldpi/image2.jpg");
+    assertThat(universalApk.getResourceTable().get())
+        .containsResource("com.test.app:drawable/image1")
+        .onlyWithConfigs(LDPI);
+    assertThat(universalApk.getResourceTable().get())
+        .containsResource("com.test.app.split:drawable/image2")
+        .onlyWithConfigs(LDPI);
   }
 
   private static ApkOptimizations standaloneApkOptimizations(OptimizationDimension... dimensions) {

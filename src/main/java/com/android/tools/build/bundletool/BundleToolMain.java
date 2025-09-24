@@ -53,11 +53,11 @@ public final class BundleToolMain {
   public static final String HELP_CMD = "help";
 
   public static void main(String[] args) {
-    main(args, Runtime.getRuntime());
+    main(args, Runtime.getRuntime()::exit);
   }
 
   /** Parses the flags and routes to the appropriate command handler. */
-  static void main(String[] args, Runtime runtime) {
+  static void main(String[] args, RuntimeWrapper runtime) {
     final ParsedFlags flags;
     try {
       flags = new FlagParser().parse(args);
@@ -171,6 +171,10 @@ public final class BundleToolMain {
     runtime.exit(0);
   }
 
+  interface RuntimeWrapper {
+    void exit(int exitCode);
+  }
+
   private static final ImmutableList<CommandHelp> COMMAND_HELPS =
       ImmutableList.of(
           BuildBundleCommand.help(),
@@ -204,7 +208,7 @@ public final class BundleToolMain {
   }
 
   /** Displays help about a given command. */
-  public static void help(String commandName, Runtime runtime) {
+  public static void help(String commandName, RuntimeWrapper runtime) {
     for (CommandHelp commandHelp : COMMAND_HELPS) {
       if (commandHelp.getCommandName().equals(commandName)) {
         commandHelp.printDetails(System.out);

@@ -352,6 +352,7 @@ public class DeclarativeWatchFaceBundleValidatorTest {
         .contains("runtime must have a single, expected dex file in its base module");
   }
 
+
   private static BundleModule createBaseModule() {
     return createBaseModule(MIN_DWF_SDK_VERSION);
   }

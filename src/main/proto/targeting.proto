@@ -62,6 +62,7 @@ message UserCountriesTargeting {
   bool exclude = 2;
 }
 
+
 message ScreenDensity {
   enum DensityAlias {
     DENSITY_UNSPECIFIED = 0;

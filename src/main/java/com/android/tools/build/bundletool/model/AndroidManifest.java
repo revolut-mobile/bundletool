@@ -87,6 +87,7 @@ public abstract class AndroidManifest {
   public static final String PERMISSION_ELEMENT_NAME = "permission";
   public static final String PERMISSION_GROUP_ELEMENT_NAME = "permission-group";
   public static final String PERMISSION_TREE_ELEMENT_NAME = "permission-tree";
+  public static final String USES_PERMISSION_ELEMENT_NAME = "uses-permission";
   public static final String PROPERTY_ELEMENT_NAME = "property";
   public static final String USES_FEATURE_ELEMENT_NAME = "uses-feature";
   public static final String MODULE_ELEMENT_NAME = "module";
@@ -141,6 +142,7 @@ public abstract class AndroidManifest {
   public static final String SDK_LIBRARY_ELEMENT_NAME = "sdk-library";
   public static final String SDK_VERSION_MAJOR_ATTRIBUTE_NAME = "versionMajor";
   public static final String ISOLATED_SPLITS_ATTRIBUTE_NAME = "isolatedSplits";
+  public static final String TITLE_ATTRIBUTE_NAME = "title";
   public static final String PATH_ATTRIBUTE_NAME = "path";
   public static final String PATH_PATTERN_NAME = "pathPattern";
   public static final String SCHEME_NAME = "scheme";
@@ -420,6 +422,22 @@ public abstract class AndroidManifest {
         .collect(
             toImmutableListMultimap(
                 activity -> activity.getAndroidAttribute(NAME_RESOURCE_ID).get().getValueAsString(),
+                identity()));
+  }
+
+  /**
+   * Gets all the xml proto services defined in the manifest.
+   *
+   * @return An {@link ImmutableListMultimap} where the key is the service name and the value is a
+   *     list of service xml proto elements.
+   */
+  public ImmutableListMultimap<String, XmlProtoElement> getServicesByName() {
+    return stream(getManifestElement().getOptionalChildElement(APPLICATION_ELEMENT_NAME))
+        .flatMap(app -> app.getChildrenElements(SERVICE_ELEMENT_NAME))
+        .filter(service -> service.getAndroidAttribute(NAME_RESOURCE_ID).isPresent())
+        .collect(
+            toImmutableListMultimap(
+                service -> service.getAndroidAttribute(NAME_RESOURCE_ID).get().getValueAsString(),
                 identity()));
   }
 
@@ -947,6 +965,13 @@ public abstract class AndroidManifest {
   public ImmutableList<XmlProtoElement> getPermissionTrees() {
     return getManifestElement()
         .getChildrenElements(PERMISSION_TREE_ELEMENT_NAME)
+        .collect(toImmutableList());
+  }
+
+  /** Returns a list of the <uses-permission> XML elements. */
+  public ImmutableList<XmlProtoElement> getUsesPermissions() {
+    return getManifestElement()
+        .getChildrenElements(USES_PERMISSION_ELEMENT_NAME)
         .collect(toImmutableList());
   }
 

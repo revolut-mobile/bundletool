@@ -42,6 +42,7 @@ import static com.android.tools.build.bundletool.model.AndroidManifest.NAME_RESO
 import static com.android.tools.build.bundletool.model.AndroidManifest.PERMISSION_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.PERMISSION_GROUP_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.RESOURCE_RESOURCE_ID;
+import static com.android.tools.build.bundletool.model.AndroidManifest.USES_PERMISSION_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.VALUE_RESOURCE_ID;
 import static com.android.tools.build.bundletool.model.AndroidManifest.VERSION_CODE_RESOURCE_ID;
 import static com.android.tools.build.bundletool.model.AndroidManifest.VERSION_NAME_RESOURCE_ID;
@@ -74,9 +75,11 @@ import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.with
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withNativeActivity;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withOnDemandAttribute;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withOnDemandDelivery;
+import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withService;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withSharedUserId;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withTargetSandboxVersion;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withTypeAttribute;
+import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withUsesPermission;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withUsesSplit;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.xmlAttribute;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.xmlBooleanAttribute;
@@ -1131,6 +1134,24 @@ public class AndroidManifestTest {
   }
 
   @Test
+  public void getServicesByName() {
+    AndroidManifest manifest =
+        AndroidManifest.create(
+            androidManifest("com.package.test", withService("service1"), withService("service2")));
+
+    assertThat(manifest.getServicesByName().keySet()).containsExactly("service1", "service2");
+  }
+
+  @Test
+  public void getServicesByName_nameDuplication() {
+    AndroidManifest manifest =
+        AndroidManifest.create(
+            androidManifest("com.package.test", withService("service1"), withService("service1")));
+
+    assertThat(manifest.getServicesByName().keySet()).containsExactly("service1");
+  }
+
+  @Test
   public void getMetadataValueAsInteger() {
     AndroidManifest androidManifest =
         AndroidManifest.create(
@@ -1450,6 +1471,35 @@ public class AndroidManifestTest {
         AndroidManifest.create(xmlNode(xmlElement("manifest", xmlNode(xmlElement("application")))));
 
     assertThat(androidManifest.getPermissionGroups()).isEmpty();
+  }
+
+  @Test
+  public void getUsesPermission_success() {
+    AndroidManifest manifest =
+        AndroidManifest.create(
+            androidManifest(
+                "com.test.app",
+                withUsesPermission("android.permission.INTERNET"),
+                withUsesPermission("android.permission.ACCESS_COARSE_LOCATION")));
+
+    assertThat(manifest.getUsesPermissions())
+        .containsExactly(
+            new XmlProtoElement(
+                xmlElement(
+                    USES_PERMISSION_ELEMENT_NAME,
+                    xmlAttribute(
+                        ANDROID_NAMESPACE_URI,
+                        NAME_ATTRIBUTE_NAME,
+                        NAME_RESOURCE_ID,
+                        "android.permission.INTERNET"))),
+            new XmlProtoElement(
+                xmlElement(
+                    USES_PERMISSION_ELEMENT_NAME,
+                    xmlAttribute(
+                        ANDROID_NAMESPACE_URI,
+                        NAME_ATTRIBUTE_NAME,
+                        NAME_RESOURCE_ID,
+                        "android.permission.ACCESS_COARSE_LOCATION"))));
   }
 
   private AndroidManifest createManifestWithApplicationAttribute(

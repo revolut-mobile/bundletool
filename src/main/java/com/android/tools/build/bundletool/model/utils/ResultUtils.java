@@ -239,6 +239,17 @@ public final class ResultUtils {
         .collect(toImmutableSet());
   }
 
+  /** Return the paths for all the splits in the given {@link BuildApksResult}. */
+  public static ImmutableSet<String> getSplitPaths(BuildApksResult toc) {
+    return splitApkVariants(toc).stream()
+        .map(Variant::getApkSetList)
+        .flatMap(List::stream)
+        .map(ApkSet::getApkDescriptionList)
+        .flatMap(List::stream)
+        .map(ApkDescription::getPath)
+        .collect(toImmutableSet());
+  }
+
   private static BuildApksResult toBuildApksResult(BuildSdkApksResult result) {
     // Converting BuildSdkApksResult to BuildApksResult allows us to reuse evaluation of shared
     // underlying fields, such as variant, in commands like extract-apks.

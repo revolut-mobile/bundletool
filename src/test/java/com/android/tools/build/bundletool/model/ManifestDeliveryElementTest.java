@@ -822,6 +822,7 @@ public class ManifestDeliveryElementTest {
         .contains("<dist:country> element is expected to have 'dist:code' attribute");
   }
 
+
   @Test
   public void getModuleConditions_multipleUserCountriesConditions_throws() {
     Optional<ManifestDeliveryElement> element =

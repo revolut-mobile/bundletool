@@ -58,6 +58,7 @@ import static com.android.tools.build.bundletool.model.AndroidManifest.THEME_ATT
 import static com.android.tools.build.bundletool.model.AndroidManifest.THEME_RESOURCE_ID;
 import static com.android.tools.build.bundletool.model.AndroidManifest.TOOLS_NAMESPACE_URI;
 import static com.android.tools.build.bundletool.model.AndroidManifest.USES_FEATURE_ELEMENT_NAME;
+import static com.android.tools.build.bundletool.model.AndroidManifest.USES_PERMISSION_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.USES_SDK_LIBRARY_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.VALUE_ATTRIBUTE_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.VALUE_RESOURCE_ID;
@@ -85,6 +86,7 @@ import com.android.tools.build.bundletool.TestData;
 import com.android.tools.build.bundletool.model.manifestelements.Activity;
 import com.android.tools.build.bundletool.model.manifestelements.Provider;
 import com.android.tools.build.bundletool.model.manifestelements.Receiver;
+import com.android.tools.build.bundletool.model.manifestelements.Service;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoAttribute;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoAttributeBuilder;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoElement;
@@ -906,6 +908,19 @@ public class ManifestEditorTest {
   }
 
   @Test
+  public void addService() throws Exception {
+    Service service = Service.builder().setName("serviceName").setExported(true).build();
+    XmlNode serviceXmlNode =
+        XmlNode.newBuilder().setElement(service.asXmlProtoElement().getProto()).build();
+    AndroidManifest androidManifest = AndroidManifest.create(androidManifest("com.test.app"));
+
+    AndroidManifest editedManifest = androidManifest.toEditor().addService(service).save();
+
+    assertThat(getApplicationElement(editedManifest).getChildList())
+        .containsExactly(serviceXmlNode);
+  }
+
+  @Test
   public void addUsesSdkLibraryElement() {
     AndroidManifest androidManifest = AndroidManifest.create(androidManifest("com.test.app"));
 
@@ -1700,6 +1715,29 @@ public class ManifestEditorTest {
                         "manifest",
                         nonApplicationElement,
                         xmlNode(newApplicationElementBuilder.build())))));
+  }
+
+  @Test
+  public void addUsesPermission() {
+    AndroidManifest originalManifest = AndroidManifest.create(xmlNode(xmlElement("manifest")));
+
+    AndroidManifest editedManifest =
+        originalManifest.toEditor().addUsesPermission("android.permission.INTERNET").save();
+
+    assertThat(editedManifest)
+        .isEqualTo(
+            AndroidManifest.create(
+                xmlNode(
+                    xmlElement(
+                        "manifest",
+                        xmlNode(
+                            xmlElement(
+                                USES_PERMISSION_ELEMENT_NAME,
+                                xmlAttribute(
+                                    ANDROID_NAMESPACE_URI,
+                                    NAME_ATTRIBUTE_NAME,
+                                    NAME_RESOURCE_ID,
+                                    "android.permission.INTERNET")))))));
   }
 
   private static void assertUsesSdkLibraryAttributes(

@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.android.bundle.Targeting.ModuleTargeting;
 import com.android.tools.build.bundletool.model.exceptions.InvalidBundleException;
+import com.android.tools.build.bundletool.testing.TargetingUtils;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.util.Optional;
@@ -163,6 +164,7 @@ public class ModuleConditionsTest {
         .ignoringRepeatedFieldOrder()
         .isEqualTo(mergeModuleTargeting(moduleExcludeCountriesTargeting("PL", "US")));
   }
+
 
   @Test
   public void toTargeting_mixedConditions() {

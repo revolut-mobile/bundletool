@@ -287,6 +287,10 @@ message StandaloneApkMetadata {
   // Names of the modules fused in this standalone APK.
   repeated string fused_module_name = 1;
 
+  // Split ID of the standalone feature module.
+  // Only set for standalone feature modules.
+  string split_id = 3;
+
   reserved 2;
 }
 

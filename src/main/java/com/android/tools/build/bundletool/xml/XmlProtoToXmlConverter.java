@@ -104,7 +104,7 @@ public final class XmlProtoToXmlConverter {
             namespaceUriToPrefix.computeIfAbsent(namespace.getUri(), k -> new ArrayDeque<>());
         prefixes.addLast(prefix);
         xmlElement.setAttributeNS(
-            /* namespaceUri= */ XMLNS_NAMESPACE_URI,
+            /* namespaceURI= */ XMLNS_NAMESPACE_URI,
             /* qualifiedName= */ prefix.isEmpty() ? "xmlns" : "xmlns:" + prefix,
             /* value= */ namespace.getUri());
       }

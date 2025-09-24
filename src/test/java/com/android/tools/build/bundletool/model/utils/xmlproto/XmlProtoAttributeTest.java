@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.android.aapt.Resources;
 import com.android.aapt.Resources.Item;
+import com.android.aapt.Resources.Item.ValueCase;
 import com.android.aapt.Resources.Primitive;
 import com.android.aapt.Resources.Reference;
 import com.android.aapt.Resources.XmlAttribute;
@@ -84,6 +85,28 @@ public class XmlProtoAttributeTest {
     XmlProtoAttribute attribute =
         new XmlProtoAttribute(XmlAttribute.newBuilder().setResourceId(0x123).build());
     assertThat(attribute.getResourceId()).isEqualTo(0x123);
+  }
+
+  @Test
+  public void getValueType_valueAsResource() {
+    XmlProtoAttribute resourceAttribute =
+        new XmlProtoAttribute(
+            XmlAttribute.newBuilder()
+                .setResourceId(0x123)
+                .setCompiledItem(Item.newBuilder().setRef(Reference.newBuilder().setId(0x456)))
+                .build());
+    assertThat(resourceAttribute.getValueType()).isEqualTo(ValueCase.REF);
+  }
+
+  @Test
+  public void getValueType_valueAsString() {
+    XmlProtoAttribute stringAttribute =
+        new XmlProtoAttribute(
+            XmlAttribute.newBuilder()
+                .setCompiledItem(
+                    Item.newBuilder().setStr(Resources.String.newBuilder().setValue("Text")))
+                .build());
+    assertThat(stringAttribute.getValueType()).isEqualTo(ValueCase.STR);
   }
 
   @Test

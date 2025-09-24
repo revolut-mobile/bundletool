@@ -149,6 +149,7 @@ public abstract class AppBundle implements Bundle {
 
   public abstract Optional<DeviceGroupConfig> getDeviceGroupConfig();
 
+
   abstract Optional<String> getPackageNameOptional();
 
   /**
@@ -285,6 +286,10 @@ public abstract class AppBundle implements Bundle {
                 entry -> entry.getPath().equals(ZipPath.create(UNCOMPRESSED_DEX_OPT_OUT_XML_PATH)));
   }
 
+  public boolean isDeclarativeWatchFace() {
+    return getBaseModule().getAndroidManifest().getDeclarativeWatchFaceProperty().isPresent();
+  }
+
   /** Returns {@code true} if bundletool has to generate a LocaleConfig file. */
   public boolean injectLocaleConfig() {
     return getBundleConfig().getLocales().getInjectLocaleConfig();
@@ -340,6 +345,7 @@ public abstract class AppBundle implements Bundle {
 
     public abstract AppBundle build();
 
+
     abstract ImmutableMap.Builder<BundleModuleName, BundleModule> modulesBuilder();
   }
 
@@ -363,7 +369,7 @@ public abstract class AppBundle implements Bundle {
       BundleMetadata bundleMetadata) {
     Optional<DeviceGroupConfig> config = deviceGroupConfigFromJsonMetadata(bundleMetadata);
     if (!config.isPresent()) {
-        config = deviceGroupConfigFromPbMetadata(bundleMetadata);
+      config = deviceGroupConfigFromPbMetadata(bundleMetadata);
     }
     return config.map(DeviceTargetingUtils::addDeviceGroupOther);
   }
@@ -393,8 +399,7 @@ public abstract class AppBundle implements Bundle {
   private static Optional<DeviceGroupConfig> deviceGroupConfigFromPbMetadata(
       BundleMetadata bundleMetadata) {
     Optional<ByteSource> protoBytes =
-        bundleMetadata.getFileAsByteSource(
-            BUNDLETOOL_NAMESPACE, DEVICE_GROUP_CONFIG_PB_FILE_NAME);
+        bundleMetadata.getFileAsByteSource(BUNDLETOOL_NAMESPACE, DEVICE_GROUP_CONFIG_PB_FILE_NAME);
     if (!protoBytes.isPresent()) {
       return Optional.empty();
     }

@@ -37,8 +37,12 @@ import static com.android.tools.build.bundletool.testing.DeviceFactory.sdkVersio
 import static com.android.tools.build.bundletool.testing.FakeSystemEnvironmentProvider.ANDROID_HOME;
 import static com.android.tools.build.bundletool.testing.FakeSystemEnvironmentProvider.ANDROID_SERIAL;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.androidManifest;
+import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.androidManifestForFeature;
+import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withDwfProperty;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withMinSdkVersion;
 import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withTargetSdkVersion;
+import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withTitle;
+import static com.android.tools.build.bundletool.testing.ManifestProtoUtils.withUsesFeatureElement;
 import static com.android.tools.build.bundletool.testing.SdkBundleBuilder.createSdkModulesConfig;
 import static com.android.tools.build.bundletool.testing.TestUtils.addKeyToKeystore;
 import static com.android.tools.build.bundletool.testing.TestUtils.createDebugKeystore;
@@ -56,10 +60,13 @@ import static com.google.common.base.StandardSystemProperty.USER_HOME;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.extensions.proto.ProtoTruth.assertThat;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Arrays.stream;
 import static org.jose4j.jws.AlgorithmIdentifiers.RSA_USING_SHA256;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
+import com.android.aapt.Resources;
+import com.android.aapt.Resources.ResourceTable;
 import com.android.apksig.SigningCertificateLineage;
 import com.android.bundle.CodeTransparencyOuterClass.CodeRelatedFile;
 import com.android.bundle.CodeTransparencyOuterClass.CodeTransparency;
@@ -67,6 +74,9 @@ import com.android.bundle.Commands.ApkSet;
 import com.android.bundle.Commands.BuildApksResult;
 import com.android.bundle.Commands.ModuleMetadata;
 import com.android.bundle.Commands.Variant;
+import com.android.bundle.Config.SplitDimension.Value;
+import com.android.bundle.Files.NativeLibraries;
+import com.android.bundle.Files.TargetedNativeDirectory;
 import com.android.bundle.RuntimeEnabledSdkConfigProto.CertificateOverride;
 import com.android.bundle.RuntimeEnabledSdkConfigProto.CertificateOverrides;
 import com.android.bundle.RuntimeEnabledSdkConfigProto.LocalDeploymentRuntimeEnabledSdkConfig;
@@ -74,7 +84,9 @@ import com.android.bundle.RuntimeEnabledSdkConfigProto.RuntimeEnabledSdk;
 import com.android.bundle.RuntimeEnabledSdkConfigProto.RuntimeEnabledSdkConfig;
 import com.android.bundle.SdkMetadataOuterClass.SdkMetadata;
 import com.android.bundle.SdkModulesConfigOuterClass.RuntimeEnabledSdkVersion;
+import com.android.bundle.Targeting.Abi;
 import com.android.bundle.Targeting.ApkTargeting;
+import com.android.bundle.Targeting.NativeDirectoryTargeting;
 import com.android.bundle.Targeting.ScreenDensity.DensityAlias;
 import com.android.bundle.Targeting.VariantTargeting;
 import com.android.tools.build.bundletool.androidtools.Aapt2Command;
@@ -86,10 +98,12 @@ import com.android.tools.build.bundletool.flags.ParsedFlags;
 import com.android.tools.build.bundletool.io.ApkSerializer;
 import com.android.tools.build.bundletool.io.AppBundleSerializer;
 import com.android.tools.build.bundletool.io.SdkBundleSerializer;
+import com.android.tools.build.bundletool.model.AbiName;
 import com.android.tools.build.bundletool.model.AndroidManifest;
 import com.android.tools.build.bundletool.model.ApksigSigningConfiguration;
 import com.android.tools.build.bundletool.model.AppBundle;
 import com.android.tools.build.bundletool.model.BundleMetadata;
+import com.android.tools.build.bundletool.model.BundleModule;
 import com.android.tools.build.bundletool.model.BundleModuleName;
 import com.android.tools.build.bundletool.model.ModuleSplit;
 import com.android.tools.build.bundletool.model.SignerConfig;
@@ -101,13 +115,17 @@ import com.android.tools.build.bundletool.model.exceptions.InvalidBundleExceptio
 import com.android.tools.build.bundletool.model.exceptions.InvalidCommandException;
 import com.android.tools.build.bundletool.model.utils.ResultUtils;
 import com.android.tools.build.bundletool.model.utils.SystemEnvironmentProvider;
+import com.android.tools.build.bundletool.model.utils.Versions;
 import com.android.tools.build.bundletool.model.utils.files.FileUtils;
 import com.android.tools.build.bundletool.testing.Aapt2Helper;
 import com.android.tools.build.bundletool.testing.AppBundleBuilder;
+import com.android.tools.build.bundletool.testing.BundleConfigBuilder;
 import com.android.tools.build.bundletool.testing.BundleModuleBuilder;
 import com.android.tools.build.bundletool.testing.CertificateFactory;
 import com.android.tools.build.bundletool.testing.FakeSigningConfigurationProvider;
 import com.android.tools.build.bundletool.testing.FakeSystemEnvironmentProvider;
+import com.android.tools.build.bundletool.testing.ManifestProtoUtils.ManifestMutator;
+import com.android.tools.build.bundletool.testing.ResourceTableBuilder;
 import com.android.tools.build.bundletool.testing.SdkBundleBuilder;
 import com.android.tools.build.bundletool.testing.TargetingUtils;
 import com.android.tools.build.bundletool.testing.TestModule;
@@ -132,6 +150,7 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Properties;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import org.jose4j.jws.JsonWebSignature;
 import org.jose4j.lang.JoseException;
@@ -822,6 +841,88 @@ public class BuildApksCommandTest {
             .setP7ZipCommand(commandViaFlags.getP7ZipCommand().get());
 
     assertThat(commandViaBuilder.build()).isEqualTo(commandViaFlags);
+  }
+
+  @Test
+  public void buildingViaFlagsAndBuilderHasSameResult_injectMinSdk() throws Exception {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    BuildApksCommand commandViaFlags =
+        BuildApksCommand.fromFlags(
+            new FlagParser()
+                .parse(
+                    "--bundle=" + bundlePath,
+                    "--output=" + outputFilePath,
+                    "--aapt2=" + AAPT2_PATH,
+                    // Optional values.
+                    "--inject-min-sdk"),
+            new PrintStream(output),
+            systemEnvironmentProvider,
+            fakeAdbServer);
+    BuildApksCommand.Builder commandViaBuilder =
+        BuildApksCommand.builder()
+            .setBundlePath(bundlePath)
+            .setOutputFile(outputFilePath)
+            // Must copy instance of the internal executor service.
+            .setAapt2Command(commandViaFlags.getAapt2Command().get())
+            .setExecutorServiceInternal(commandViaFlags.getExecutorService())
+            .setExecutorServiceCreatedByBundleTool(true)
+            .setOutputPrintStream(commandViaFlags.getOutputPrintStream().get())
+            .setInjectMinSdk(true);
+
+    assertThat(commandViaBuilder.build()).isEqualTo(commandViaFlags);
+  }
+
+  @Test
+  public void buildingViaFlagsAndBuilderHasSameResult_optionalEnableSparseEncoding()
+      throws Exception {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    BuildApksCommand commandViaFlags =
+        BuildApksCommand.fromFlags(
+            new FlagParser()
+                .parse(
+                    "--bundle=" + bundlePath,
+                    "--output=" + outputFilePath,
+                    "--aapt2=" + AAPT2_PATH,
+                    // Optional values.
+                    "--enable-sparse-encoding"),
+            new PrintStream(output),
+            systemEnvironmentProvider,
+            fakeAdbServer);
+
+    BuildApksCommand.Builder commandViaBuilder =
+        BuildApksCommand.builder()
+            .setBundlePath(bundlePath)
+            .setOutputFile(outputFilePath)
+            // Optional values.
+            .setEnableSparseEncoding(true)
+            // Must copy instance of the internal executor service.
+            .setAapt2Command(commandViaFlags.getAapt2Command().get())
+            .setExecutorServiceInternal(commandViaFlags.getExecutorService())
+            .setExecutorServiceCreatedByBundleTool(true)
+            .setOutputPrintStream(commandViaFlags.getOutputPrintStream().get());
+    DebugKeystoreUtils.getDebugSigningConfiguration(systemEnvironmentProvider)
+        .ifPresent(commandViaBuilder::setSigningConfiguration);
+
+    assertThat(commandViaBuilder.build()).isEqualTo(commandViaFlags);
+    assertThat(commandViaFlags.getEnableSparseEncoding()).isTrue();
+  }
+
+  @Test
+  public void buildingViaFlagsAndBuilderHasSameResult_optionalEnableSparseEncoding_false()
+      throws Exception {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    BuildApksCommand commandViaFlags =
+        BuildApksCommand.fromFlags(
+            new FlagParser()
+                .parse(
+                    "--bundle=" + bundlePath,
+                    "--output=" + outputFilePath,
+                    "--aapt2=" + AAPT2_PATH),
+            new PrintStream(output),
+            systemEnvironmentProvider,
+            fakeAdbServer);
+
+    assertThat(commandViaFlags.getEnableSparseEncoding()).isFalse();
   }
 
   @Test
@@ -2932,6 +3033,71 @@ public class BuildApksCommandTest {
         .contains(
             "Providing custom store package is only possible when running with 'archive' mode"
                 + " flag.");
+  }
+
+
+  // Split APKs can be shared across variants if they are identical. Injecting minSdk into split
+  // APKs makes them non-identical between variants. This test verifies that --inject-min-sdk is
+  // working properly by asserting that there are more generated APKs when it's set because the
+  // native splits cannot be shared between variants.
+  @Test
+  public void buildApks_injectMinSdk_createsMoreSplitApks() throws Exception {
+    Path outputWithoutInjection = tmpDir.resolve("noInject.apks");
+    Path outputWithInjection = tmpDir.resolve("inject.apks");
+    AppBundleBuilder appBundle =
+        new AppBundleBuilder()
+            .setBundleConfig(BundleConfigBuilder.create().addSplitDimension(Value.ABI).build())
+            .addModule("base", this::buildModuleWithDexAndNativeLib);
+    createAppBundle(bundlePath, appBundle.build());
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+    BuildApksCommand.fromFlags(
+            new FlagParser()
+                .parse(
+                    "--bundle=" + bundlePath,
+                    "--output=" + outputWithInjection,
+                    "--aapt2=" + AAPT2_PATH,
+                    "--inject-min-sdk"),
+            new PrintStream(output),
+            systemEnvironmentProvider,
+            fakeAdbServer)
+        .execute();
+    BuildApksCommand.fromFlags(
+            new FlagParser()
+                .parse(
+                    "--bundle=" + bundlePath,
+                    "--output=" + outputWithoutInjection,
+                    "--aapt2=" + AAPT2_PATH),
+            new PrintStream(output),
+            systemEnvironmentProvider,
+            fakeAdbServer)
+        .execute();
+
+    BuildApksResult buildApksResultWithInjection =
+        ResultUtils.readTableOfContents(outputWithInjection);
+    BuildApksResult buildApksResultWithoutInjection =
+        ResultUtils.readTableOfContents(outputWithoutInjection);
+    int splitCountWithInjection = ResultUtils.getSplitPaths(buildApksResultWithInjection).size();
+    int splitCountWithoutInjection =
+        ResultUtils.getSplitPaths(buildApksResultWithoutInjection).size();
+    assertThat(splitCountWithInjection).isGreaterThan(splitCountWithoutInjection);
+  }
+
+  private void buildModuleWithDexAndNativeLib(BundleModuleBuilder module) {
+    module.setManifest(
+        androidManifest("com.app", withMinSdkVersion(Versions.ANDROID_L_API_VERSION)));
+    module.addFile("dex/classes.dex", new byte[1]);
+    module.addFile("lib/arm64-v8a/lib.so", new byte[2]);
+    TargetedNativeDirectory arm64Dir =
+        TargetedNativeDirectory.newBuilder()
+            .setPath(
+                BundleModule.LIB_DIRECTORY.resolve(AbiName.ARM64_V8A.getPlatformName()).toString())
+            .setTargeting(
+                NativeDirectoryTargeting.newBuilder()
+                    .setAbi(Abi.newBuilder().setAlias(AbiName.ARM64_V8A.toProto())))
+            .build();
+    module.setNativeConfig(NativeLibraries.newBuilder().addDirectory(arm64Dir).build());
+    module.build();
   }
 
   private void createAppBundle(Path path) throws Exception {

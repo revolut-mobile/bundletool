@@ -150,7 +150,7 @@ public final class BundleConfigValidator extends SubValidator {
   private void validateVersion(BundleConfig bundleConfig) {
     try {
       BundleToolVersion.getVersionFromBundleConfig(bundleConfig);
-    } catch (IllegalArgumentException e) {
+    } catch (InvalidBundleException e) {
       throw InvalidBundleException.builder()
           .withCause(e)
           .withUserMessage("Invalid version in the BundleConfig.pb file.")

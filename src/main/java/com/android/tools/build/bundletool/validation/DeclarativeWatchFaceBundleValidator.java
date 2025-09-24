@@ -55,30 +55,31 @@ public final class DeclarativeWatchFaceBundleValidator extends SubValidator {
   }
 
   private void validateDwfBundle(AppBundle bundle) {
-    validateBundleContainsAtMostTwoModules(bundle);
+      validateBundleContainsAtMostTwoModules(bundle);
 
-    BundleModule baseModule = bundle.getBaseModule();
+      BundleModule baseModule = bundle.getBaseModule();
 
-    validateBaseIsWatchModule(baseModule);
+      validateBaseIsWatchModule(baseModule);
 
-    validateBaseContainsLayoutDefinitions(baseModule);
-    validateBaseHasNoExecutableComponents(baseModule);
+      validateBaseContainsLayoutDefinitions(baseModule);
+      validateBaseHasNoExecutableComponents(baseModule);
 
-    validateBaseHasNoLibs(baseModule);
-    validateBaseHasNoCodeInRoot(baseModule);
+      validateBaseHasNoLibs(baseModule);
+      validateBaseHasNoCodeInRoot(baseModule);
 
-    Optional<Entry<BundleModuleName, BundleModule>> optionalRuntime = getOptionalRuntime(bundle);
+      Optional<Entry<BundleModuleName, BundleModule>> optionalRuntime = getOptionalRuntime(bundle);
 
-    optionalRuntime.ifPresent(this::validateRuntimeIsConditionallyInstalled);
+      optionalRuntime.ifPresent(this::validateRuntimeIsConditionallyInstalled);
 
-    validateMinSdkIsCorrect(baseModule, optionalRuntime.isPresent());
-    validateNoUnexpectedDexFiles(baseModule, optionalRuntime.isPresent());
+      validateMinSdkIsCorrect(baseModule, optionalRuntime.isPresent());
+      validateNoUnexpectedDexFiles(baseModule, optionalRuntime.isPresent());
   }
 
   private void validateBundleContainsAtMostTwoModules(AppBundle bundle) {
     ImmutableMap<BundleModuleName, BundleModule> modules = bundle.getModules();
     assertWithUserMessage(modules.size() <= 2, "Watch face bundle can have at most two modules.");
   }
+
 
   private void validateBaseIsWatchModule(BundleModule baseModule) {
     ImmutableList<XmlProtoElement> usesFeatureWatch =

@@ -83,6 +83,7 @@ import static com.android.tools.build.bundletool.model.AndroidManifest.THEME_ATT
 import static com.android.tools.build.bundletool.model.AndroidManifest.THEME_RESOURCE_ID;
 import static com.android.tools.build.bundletool.model.AndroidManifest.TOOLS_NAMESPACE_URI;
 import static com.android.tools.build.bundletool.model.AndroidManifest.USES_FEATURE_ELEMENT_NAME;
+import static com.android.tools.build.bundletool.model.AndroidManifest.USES_PERMISSION_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.USES_SDK_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.USES_SDK_LIBRARY_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.VALUE_ATTRIBUTE_NAME;
@@ -745,6 +746,16 @@ public final class ManifestProtoUtils {
         MAX_SDK_VERSION_ATTRIBUTE_NAME, MAX_SDK_VERSION_RESOURCE_ID, version);
   }
 
+  public static ManifestMutator withUsesPermission(String permission) {
+    return manifestElement ->
+        manifestElement.addChildElement(
+            XmlProtoElementBuilder.create(USES_PERMISSION_ELEMENT_NAME)
+                .addAttribute(
+                    XmlProtoAttributeBuilder.createAndroidAttribute(
+                            NAME_ATTRIBUTE_NAME, NAME_RESOURCE_ID)
+                        .setValueAsString(permission)));
+  }
+
   private static ManifestMutator withUsesSdkAttribute(
       String attributeName, int resourceId, int value) {
     return manifestElement ->
@@ -1199,6 +1210,18 @@ public final class ManifestProtoUtils {
                                 XmlProtoAttributeBuilder.createAndroidAttribute(
                                         VALUE_ATTRIBUTE_NAME, VALUE_RESOURCE_ID)
                                     .setValueAsString(libName))));
+  }
+
+  public static ManifestMutator withService(String name) {
+    return manifestElement ->
+        manifestElement
+            .getOrCreateChildElement(APPLICATION_ELEMENT_NAME)
+            .addChildElement(
+                XmlProtoElementBuilder.create(SERVICE_ELEMENT_NAME)
+                    .addAttribute(
+                        XmlProtoAttributeBuilder.createAndroidAttribute(
+                                NAME_ATTRIBUTE_NAME, NAME_RESOURCE_ID)
+                            .setValueAsString(name)));
   }
 
   /** Adds an <sdk-library> element to an SDK Bundle manifest. */

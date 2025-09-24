@@ -25,7 +25,9 @@ import static com.android.tools.build.bundletool.model.version.VersionGuardedFea
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static com.google.common.collect.Iterables.getOnlyElement;
 import static com.google.common.primitives.Ints.max;
+import static java.lang.Math.max;
 
 import com.android.aapt.ConfigurationOuterClass.Configuration;
 import com.android.bundle.Targeting.ApkTargeting;
@@ -173,6 +175,7 @@ public class ModuleSplitter {
           .map(this::addPlaceHolderNativeLibsToBaseModule)
           .map(this::addUsesSdkLibraryTagsToMainSplitOfBaseModule)
           .map(this::sanitizeManifestEntriesRequiredByPrivacySandboxSdk)
+          .map(this::applyMinSdkVersionFromVariant)
           .map(this::overrideMinSdkVersionOfSdkRuntimeVariant)
           .collect(toImmutableList());
     }
@@ -197,6 +200,22 @@ public class ModuleSplitter {
           appBundle.getRuntimeEnabledSdkDependencies().values());
     }
     return moduleSplit;
+  }
+
+  private ModuleSplit applyMinSdkVersionFromVariant(ModuleSplit moduleSplit) {
+    if (!apkGenerationConfiguration.getInjectMinSdk()
+        || variantTargeting.getSdkVersionTargeting().getValueList().isEmpty()) {
+      return moduleSplit;
+    }
+    int variantMinSdk =
+        getOnlyElement(variantTargeting.getSdkVersionTargeting().getValueList())
+            .getMin()
+            .getValue();
+    Optional<Integer> existingMinSdk = module.getAndroidManifest().getMinSdkVersion();
+    if (existingMinSdk.isPresent()) {
+      variantMinSdk = max(variantMinSdk, existingMinSdk.get());
+    }
+    return moduleSplit.overrideMinSdkVersion(variantMinSdk);
   }
 
   private ModuleSplit overrideMinSdkVersionOfSdkRuntimeVariant(ModuleSplit moduleSplit) {
@@ -349,7 +368,7 @@ public class ModuleSplitter {
     return moduleSplit.writeSplitIdInManifest(resolvedSuffix);
   }
 
-  /* Removes the {@code splitName} attribute, if it exists in the manifest. */
+  /** Removes the {@code splitName} attribute, if it exists in the manifest. */
   public ModuleSplit removeSplitName(ModuleSplit moduleSplit) {
     return moduleSplit.removeSplitName();
   }

@@ -410,7 +410,11 @@ public class ModuleSplitSerializer extends ApkSerializer {
 
     // Copying logic from aapt2: require at least 10% gains in savings.
     if (moduleEntry.getPath().startsWith("res")) {
-      return uncompressedSize == 0 || (compressedSize + compressedSize / 10 > uncompressedSize);
+      // When the second predicate is true, the third predicate will be false only if the
+      // compressed size is smaller than 10. Otherwise, this second predicate has no effect.
+      return (uncompressedSize == 0)
+          || (uncompressedSize == compressedSize)
+          || (compressedSize + compressedSize / 10 > uncompressedSize);
     }
     return compressedSize >= uncompressedSize;
   }

@@ -61,7 +61,7 @@ public final class ShardedApksFacade {
   public ImmutableList<ModuleSplit> generateSplits(
       ImmutableList<BundleModule> modules, ApkOptimizations apkOptimizations) {
     return standaloneApksGenerator.generateStandaloneApks(
-        maybeRemove64BitLibraries(modules), apkOptimizations);
+        maybeRemove64BitLibraries(modules), apkOptimizations, apkBuildMode);
   }
 
   public ImmutableList<ModuleSplit> generateSystemSplits(

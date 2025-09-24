@@ -18,6 +18,7 @@ package com.android.tools.build.bundletool.splitters;
 
 import static com.android.tools.build.bundletool.model.utils.Versions.ANDROID_Q_API_VERSION;
 import static com.android.tools.build.bundletool.model.utils.Versions.ANDROID_S_API_VERSION;
+import static com.android.tools.build.bundletool.model.utils.Versions.ANDROID_T_API_VERSION;
 
 import com.android.bundle.Config.SuffixStripping;
 import com.android.bundle.Config.UncompressDexFiles.UncompressedDexTargetSdk;
@@ -52,6 +53,8 @@ public abstract class ApkGenerationConfiguration {
 
   public abstract boolean getEnableBaseModuleMinSdkAsDefaultTargeting();
 
+  public abstract boolean getInjectMinSdk();
+
   /**
    * Returns a list of ABIs for placeholder libraries that should be populated for base modules
    * without native code. See {@link AbiPlaceholderInjector} for details.
@@ -79,6 +82,8 @@ public abstract class ApkGenerationConfiguration {
     switch (getDexCompressionSplitterForTargetSdk()) {
       case SDK_31:
         return ANDROID_S_API_VERSION;
+      case SDK_33:
+        return ANDROID_T_API_VERSION;
       default:
         // Uncompressed dex are supported starting from Android P, but only starting from Android Q
         // the performance impact is negligible compared to a compressed dex.
@@ -105,6 +110,7 @@ public abstract class ApkGenerationConfiguration {
         .setEnableSparseEncodingVariant(false)
         .setInstallableOnExternalStorage(false)
         .setEnableBaseModuleMinSdkAsDefaultTargeting(false)
+        .setInjectMinSdk(false)
         .setAbisForPlaceholderLibs(ImmutableSet.of())
         .setOptimizationDimensions(ImmutableSet.of())
         .setMasterPinnedResourceIds(ImmutableSet.of())
@@ -154,6 +160,8 @@ public abstract class ApkGenerationConfiguration {
 
     public abstract Builder setEnableBaseModuleMinSdkAsDefaultTargeting(
         boolean enableBaseModuleMinSdkAsDefaultTargeting);
+
+    public abstract Builder setInjectMinSdk(boolean injectMinSdk);
 
     public abstract ApkGenerationConfiguration build();
   }

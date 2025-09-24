@@ -44,6 +44,11 @@ public abstract class BundleMetadata {
 
   public static final String PROGUARD_MAP_FILE_NAME = "proguard.map";
 
+  /** Namespaced directory where the app optimization info is stored. */
+  public static final String TOOLS_NAMESPACE = "com.android.tools";
+
+  public static final String D8_OPTIMIZATION_INFO_FILE_NAME = "d8.json";
+
   public static final String TRANSPARENCY_SIGNED_FILE_NAME = "code_transparency_signed.jwt";
 
   public static final String DEVICE_GROUP_CONFIG_JSON_FILE_NAME = "DeviceGroupConfig.json";

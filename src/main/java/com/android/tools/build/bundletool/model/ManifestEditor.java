@@ -76,6 +76,7 @@ import static com.android.tools.build.bundletool.model.AndroidManifest.THEME_ATT
 import static com.android.tools.build.bundletool.model.AndroidManifest.THEME_RESOURCE_ID;
 import static com.android.tools.build.bundletool.model.AndroidManifest.TOOLS_NAMESPACE_URI;
 import static com.android.tools.build.bundletool.model.AndroidManifest.USES_FEATURE_ELEMENT_NAME;
+import static com.android.tools.build.bundletool.model.AndroidManifest.USES_PERMISSION_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.USES_SDK_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.USES_SDK_LIBRARY_ELEMENT_NAME;
 import static com.android.tools.build.bundletool.model.AndroidManifest.VALUE_ATTRIBUTE_NAME;
@@ -93,6 +94,7 @@ import static java.util.stream.Collectors.joining;
 import com.android.tools.build.bundletool.model.manifestelements.Activity;
 import com.android.tools.build.bundletool.model.manifestelements.Provider;
 import com.android.tools.build.bundletool.model.manifestelements.Receiver;
+import com.android.tools.build.bundletool.model.manifestelements.Service;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoAttribute;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoAttributeBuilder;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoElement;
@@ -494,6 +496,14 @@ public class ManifestEditor {
     return this;
   }
 
+  @CanIgnoreReturnValue
+  public ManifestEditor addService(Service service) {
+    manifestElement
+        .getOrCreateChildElement(APPLICATION_ELEMENT_NAME)
+        .addChildElement(service.asXmlProtoElement().toBuilder());
+    return this;
+  }
+
   private boolean hasIntentFilterWithCategoryName(
       XmlProtoElementBuilder element, String categoryName) {
     return element
@@ -530,10 +540,19 @@ public class ManifestEditor {
     return this;
   }
 
+  @CanIgnoreReturnValue
+  public ManifestEditor addUsesPermission(String permission) {
+    manifestElement.addChildElement(
+        XmlProtoElementBuilder.create(USES_PERMISSION_ELEMENT_NAME)
+            .addAttribute(
+                createAndroidAttribute(NAME_ATTRIBUTE_NAME, NAME_RESOURCE_ID)
+                    .setValueAsString(permission)));
+    return this;
+  }
+
   /** Adds uses-sdk-library tag to the manifest. */
   @CanIgnoreReturnValue
-  public ManifestEditor addUsesSdkLibraryElement(
-      String name, int versionMajor, String certDigest) {
+  public ManifestEditor addUsesSdkLibraryElement(String name, int versionMajor, String certDigest) {
     manifestElement
         .getOrCreateChildElement(APPLICATION_ELEMENT_NAME)
         .addChildElement(

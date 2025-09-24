@@ -44,7 +44,6 @@ import com.android.tools.build.bundletool.model.utils.DeviceTargetingUtils;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoAttribute;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoElement;
 import com.android.tools.build.bundletool.model.utils.xmlproto.XmlProtoNode;
-import com.android.tools.build.bundletool.model.version.Version;
 import com.google.auto.value.AutoValue;
 import com.google.auto.value.extension.memoized.Memoized;
 import com.google.common.annotations.VisibleForTesting;
@@ -284,6 +283,7 @@ public abstract class ManifestDeliveryElement {
             .orElse(false);
     return UserCountriesCondition.create(countryCodes.build(), exclude);
   }
+
 
   private DeviceGroupsCondition parseDeviceGroupsCondition(XmlProtoElement conditionElement) {
     ImmutableList<XmlProtoElement> children =

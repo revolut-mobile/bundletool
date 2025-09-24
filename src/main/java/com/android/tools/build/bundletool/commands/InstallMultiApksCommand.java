@@ -108,6 +108,7 @@ public abstract class InstallMultiApksCommand {
   private static final Flag<Boolean> STAGED = Flag.booleanFlag("staged");
   private static final Flag<Boolean> ENABLE_ROLLBACK_FLAG = Flag.booleanFlag("enable-rollback");
   private static final Flag<Boolean> UPDATE_ONLY_FLAG = Flag.booleanFlag("update-only");
+  private static final Flag<Boolean> ALLOW_DOWNGRADE_FLAG = Flag.booleanFlag("allow-downgrade");
   private static final Flag<Path> AAPT2_PATH_FLAG = Flag.path("aapt2");
   private static final Flag<Integer> TIMEOUT_MILLIS_FLAG = Flag.positiveInteger("timeout-millis");
 
@@ -136,6 +137,8 @@ public abstract class InstallMultiApksCommand {
 
   abstract boolean getUpdateOnly();
 
+  abstract boolean getAllowDowngrade();
+
   abstract AdbServer getAdbServer();
 
   abstract Optional<Duration> getTimeout();
@@ -144,7 +147,8 @@ public abstract class InstallMultiApksCommand {
     return new AutoValue_InstallMultiApksCommand.Builder()
         .setStaged(false)
         .setEnableRollback(false)
-        .setUpdateOnly(false);
+        .setUpdateOnly(false)
+        .setAllowDowngrade(false);
   }
 
   /** Builder for the {@link InstallMultiApksCommand}. */
@@ -181,6 +185,8 @@ public abstract class InstallMultiApksCommand {
 
     abstract Builder setUpdateOnly(boolean value);
 
+    abstract Builder setAllowDowngrade(boolean value);
+
     /** The caller is responsible for the lifecycle of the {@link AdbServer}. */
     abstract Builder setAdbServer(AdbServer adbServer);
 
@@ -202,6 +208,7 @@ public abstract class InstallMultiApksCommand {
         .ifPresent(command::setDeviceId);
     ENABLE_ROLLBACK_FLAG.getValue(flags).ifPresent(command::setEnableRollback);
     UPDATE_ONLY_FLAG.getValue(flags).ifPresent(command::setUpdateOnly);
+    ALLOW_DOWNGRADE_FLAG.getValue(flags).ifPresent(command::setAllowDowngrade);
     STAGED.getValue(flags).ifPresent(command::setStaged);
     AAPT2_PATH_FLAG
         .getValue(flags)
@@ -301,7 +308,7 @@ public abstract class InstallMultiApksCommand {
    * <ul>
    *   <li>If it is not already present on the device and --update-only is not set, or
    *   <li>The installable version has a equal or higher version code than the one already
-   *       installed.
+   *       installed, unless --allow-downgrade is set.
    * </ul>
    */
   private boolean shouldInstall(
@@ -321,7 +328,7 @@ public abstract class InstallMultiApksCommand {
     InstalledPackageInfo existingPackage =
         requireNonNull(existingPackages.get(apk.getPackageName()));
 
-    if (existingPackage.getVersionCode() <= apk.getVersionCode()) {
+    if (existingPackage.getVersionCode() <= apk.getVersionCode() || getAllowDowngrade()) {
       return true;
     }
 
@@ -626,6 +633,14 @@ public abstract class InstallMultiApksCommand {
                 .setDescription(
                     "If set, only packages that are already installed on the device will be"
                         + " updated. Entirely new packages will not be installed.")
+                .build())
+        .addFlag(
+            FlagDescription.builder()
+                .setFlagName(ALLOW_DOWNGRADE_FLAG.getName())
+                .setOptional(true)
+                .setDescription(
+                    "If set, allows APKs to be installed on the device even if the app is already "
+                        + "installed with a higher version code.")
                 .build())
         .addFlag(
             FlagDescription.builder()

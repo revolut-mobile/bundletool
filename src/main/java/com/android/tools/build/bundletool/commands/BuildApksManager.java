@@ -331,11 +331,12 @@ public final class BuildApksManager {
     setEnableUncompressedDexOptimization(appBundle, apkGenerationConfiguration);
 
     apkGenerationConfiguration.setEnableSparseEncodingVariant(
-        bundleConfig
-            .getOptimizations()
-            .getResourceOptimizations()
-            .getSparseEncoding()
-            .equals(SparseEncoding.VARIANT_FOR_SDK_32));
+        command.getEnableSparseEncoding()
+            || bundleConfig
+                .getOptimizations()
+                .getResourceOptimizations()
+                .getSparseEncoding()
+                .equals(SparseEncoding.VARIANT_FOR_SDK_32));
 
     apkGenerationConfiguration.setInstallableOnExternalStorage(
         appBundle
@@ -359,6 +360,8 @@ public final class BuildApksManager {
 
     apkGenerationConfiguration.setEnableBaseModuleMinSdkAsDefaultTargeting(
         command.getEnableBaseModuleMinSdkAsDefaultTargeting());
+    apkGenerationConfiguration.setInjectMinSdk(
+        command.getInjectMinSdk() || bundleConfig.getOptimizations().getInjectMinSdk());
 
     command
         .getMinSdkForAdditionalVariantWithV3Rotation()
@@ -467,7 +470,8 @@ public final class BuildApksManager {
 
   private static ImmutableList<BundleModule> getModulesForStandaloneApks(AppBundle appBundle) {
     return Stream.concat(
-            appBundle.getFeatureModules().values().stream(),
+            appBundle.getFeatureModules().values().stream()
+            ,
             appBundle.getAssetModules().values().stream()
                 .filter(
                     module ->

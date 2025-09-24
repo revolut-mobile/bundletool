@@ -22,11 +22,13 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.IShellOutputReceiver;
+import com.android.ddmlib.ServiceInfo;
 import com.android.ddmlib.SyncException;
 import com.android.ddmlib.SyncException.SyncError;
 import com.android.sdklib.AndroidVersion;
@@ -36,6 +38,7 @@ import com.android.tools.build.bundletool.device.Device.FilePullParams;
 import com.android.tools.build.bundletool.device.Device.InstallOptions;
 import com.android.tools.build.bundletool.device.Device.PushOptions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Clock;
@@ -316,6 +319,32 @@ public final class DdmlibDeviceTest {
     ddmlibDevice.removeRemotePath(pathToRemove, Optional.of(packageName), Duration.ofMillis(10));
   }
 
+  @Test
+  public void supportsPrivacySandbox_withServiceAndApi34Level_returnsTrue() throws Exception {
+    when(mockDevice.services()).thenReturn(ImmutableMap.of("sdk_sandbox", new ServiceInfo("", "")));
+    when(mockDevice.getVersion()).thenReturn(new AndroidVersion(VersionCodes.UPSIDE_DOWN_CAKE));
+    DdmlibDevice ddmlibDevice = new DdmlibDevice(mockDevice);
+
+    assertThat(ddmlibDevice.supportsPrivacySandbox()).isTrue();
+  }
+
+  @Test
+  public void supportsPrivacySandbox_withServiceAndApi33Level_returnsFalse() throws Exception {
+    when(mockDevice.services()).thenReturn(ImmutableMap.of("sdk_sandbox", new ServiceInfo("", "")));
+    when(mockDevice.getVersion()).thenReturn(new AndroidVersion(VersionCodes.TIRAMISU));
+    DdmlibDevice ddmlibDevice = new DdmlibDevice(mockDevice);
+
+    assertThat(ddmlibDevice.supportsPrivacySandbox()).isFalse();
+  }
+
+  @Test
+  public void supportsPrivacySandbox_withoutServiceAndApi34Level_returnsFalse() throws Exception {
+    when(mockDevice.getVersion()).thenReturn(new AndroidVersion(VersionCodes.UPSIDE_DOWN_CAKE));
+    DdmlibDevice ddmlibDevice = new DdmlibDevice(mockDevice);
+
+    assertThat(ddmlibDevice.supportsPrivacySandbox()).isFalse();
+  }
+
   private void mockAdbShellCommand(String command, String response) throws Exception {
     Mockito.doAnswer(
             invocation -> {
@@ -352,5 +381,29 @@ public final class DdmlibDeviceTest {
         .isEqualTo("cat 'abc' 'def'");
     assertThat(RemoteCommandExecutor.formatCommandWithArgs("cat %s %s", "ab'c", "de'f"))
         .isEqualTo("cat 'ab'\\''c' 'de'\\''f'");
+  }
+
+  @Test
+  public void getGlExtensions_supportedDevice_runsDumpsys() throws Exception {
+    when(mockDevice.getVersion()).thenReturn(new AndroidVersion(VersionCodes.O));
+    when(mockDevice.getProperty("ro.build.characteristics")).thenReturn("watch");
+    mockAdbShellCommand("dumpsys SurfaceFlinger", "");
+
+    ImmutableList<String> glExtensions = new DdmlibDevice(mockDevice).getGlExtensions();
+
+    assertThat(glExtensions).isEmpty();
+    verify(mockDevice).executeShellCommand(eq("dumpsys SurfaceFlinger"), any(), anyLong(), any());
+  }
+
+  @Test
+  public void getGlExtensions_unsupportedDevice_returnsEmpty() throws Exception {
+    when(mockDevice.getVersion()).thenReturn(new AndroidVersion(VersionCodes.N_MR1));
+    when(mockDevice.getProperty("ro.build.characteristics")).thenReturn("watch");
+
+    ImmutableList<String> glExtensions = new DdmlibDevice(mockDevice).getGlExtensions();
+
+    assertThat(glExtensions).isEmpty();
+    verify(mockDevice, never())
+        .executeShellCommand(eq("dumpsys SurfaceFlinger"), any(), anyLong(), any());
   }
 }

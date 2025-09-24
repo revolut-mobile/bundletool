@@ -78,7 +78,7 @@ public class SdkModulesConfigValidator extends SubValidator {
   private void validateBundletoolVersion(SdkModulesConfig sdkModulesConfig) {
     try {
       Version.of(sdkModulesConfig.getBundletool().getVersion());
-    } catch (IllegalArgumentException e) {
+    } catch (InvalidBundleException e) {
       throw InvalidBundleException.builder()
           .withCause(e)
           .withUserMessage(

@@ -37,6 +37,10 @@ abstract class XmlProtoAttributeOrBuilder<AttributeProtoT extends XmlAttributeOr
     return getProto().getResourceId();
   }
 
+  public final ValueCase getValueType() {
+    return getProto().getCompiledItem().getValueCase();
+  }
+
   public final String getValueAsString() {
     if (getProto().getCompiledItem().getValueCase().equals(ValueCase.STR)) {
       return getProto().getCompiledItem().getStr().getValue();
@@ -108,6 +112,14 @@ abstract class XmlProtoAttributeOrBuilder<AttributeProtoT extends XmlAttributeOr
   public final boolean hasStringValue() {
     return getProto().getCompiledItem().getValueCase().equals(ValueCase.STR)
         || !getProto().getValue().isEmpty();
+  }
+
+  public final boolean hasBooleanValue() {
+    return getProto()
+        .getCompiledItem()
+        .getPrim()
+        .getOneofValueCase()
+        .equals(OneofValueCase.BOOLEAN_VALUE);
   }
 
   public final boolean hasRefIdValue() {

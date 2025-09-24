@@ -18,6 +18,7 @@ package com.android.tools.build.bundletool.model.version;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.android.tools.build.bundletool.model.exceptions.InvalidBundleException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
 import org.junit.Test;
@@ -38,12 +39,12 @@ public class VersionTest {
 
   @Test
   public void incorrectVersionScheme() {
-    assertThrows(IllegalArgumentException.class, () -> Version.of("1.2"));
-    assertThrows(IllegalArgumentException.class, () -> Version.of("1.2.3.4"));
-    assertThrows(IllegalArgumentException.class, () -> Version.of("1.2.a"));
-    assertThrows(IllegalArgumentException.class, () -> Version.of("1.2.3-"));
-    assertThrows(IllegalArgumentException.class, () -> Version.of("-1.0.0"));
-    assertThrows(IllegalArgumentException.class, () -> Version.of("1.-1.0"));
+    assertThrows(InvalidBundleException.class, () -> Version.of("1.2"));
+    assertThrows(InvalidBundleException.class, () -> Version.of("1.2.3.4"));
+    assertThrows(InvalidBundleException.class, () -> Version.of("1.2.a"));
+    assertThrows(InvalidBundleException.class, () -> Version.of("1.2.3-"));
+    assertThrows(InvalidBundleException.class, () -> Version.of("-1.0.0"));
+    assertThrows(InvalidBundleException.class, () -> Version.of("1.-1.0"));
   }
 
   @Test

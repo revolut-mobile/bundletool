@@ -57,7 +57,7 @@ public final class ResourcesUtils {
               new CacheLoader<String, String>() {
                 @Override
                 public String load(String locale) {
-                  return Locale.forLanguageTag(locale).getLanguage();
+                  return getLegacyLanguage(Locale.forLanguageTag(locale));
                 }
               });
 
@@ -279,6 +279,21 @@ public final class ResourcesUtils {
     return configValues(resourceTable)
         .filter(configValue -> configValue.getValue().getItem().hasFile())
         .map(configValue -> configValue.getValue().getItem().getFile());
+  }
+
+  /** Returns the same string as {@link Locale#getLanguage} on JDK versions before JDK 25. */
+  private static String getLegacyLanguage(Locale locale) {
+    String language = locale.getLanguage();
+    switch (language) {
+      case "he":
+        return "iw";
+      case "id":
+        return "in";
+      case "yi":
+        return "ji";
+      default:
+        return language;
+    }
   }
 
   // Not meant to be instantiated.

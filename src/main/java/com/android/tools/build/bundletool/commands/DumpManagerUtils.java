@@ -35,6 +35,7 @@ import com.android.tools.build.bundletool.xml.XmlUtils;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.protobuf.MessageOrBuilder;
+import com.google.protobuf.TextFormat;
 import com.google.protobuf.util.JsonFormat;
 import java.io.IOException;
 import java.io.InputStream;
@@ -126,7 +127,7 @@ public final class DumpManagerUtils {
       if (configValue.getConfig().equals(Configuration.getDefaultInstance())) {
         printStream.print("(default)");
       } else {
-        printStream.print(configValue.getConfig().toString().trim());
+        printStream.print(TextFormat.printer().printToString(configValue.getConfig()).trim());
       }
       if (printValues) {
         printStream.printf(

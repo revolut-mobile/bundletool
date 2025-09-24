@@ -7,7 +7,7 @@
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
+ * Unless required by applicable law or agreed to in w  riting, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -149,6 +149,19 @@ public class InstallMultiApksCommandTest {
 
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, fromFlags::execute);
     assertThat(e).hasMessageThat().contains("was not found");
+  }
+
+  @Test
+  public void fromFlags_allowDowngrade() {
+    Path zipFile = tmpDir.resolve("container.zip");
+
+    InstallMultiApksCommand fromFlags =
+        InstallMultiApksCommand.fromFlags(
+            new FlagParser().parse("--allow-downgrade", "--apks-zip=" + zipFile),
+            systemEnvironmentProvider,
+            fakeServerOneDevice(qDeviceWithLocales("en-US")));
+
+    assertThat(fromFlags.getAllowDowngrade()).isTrue();
   }
 
   @Test
@@ -858,6 +871,37 @@ public class InstallMultiApksCommandTest {
         () ->
             String.format(
                 "package:%s versionCode:1\npackage:%s versionCode:1", PKG_NAME_1, PKG_NAME_2));
+    device.injectShellCommandOutput("pm list packages --apex-only --show-versioncode", () -> "");
+    command.execute();
+    assertAdbCommandExecuted();
+  }
+
+  @Test
+  public void execute_allowDowngrade_installsLowerVersion() throws Exception {
+    // GIVEN a package with a higher version is already installed on the device...
+    BuildApksResult tableOfContents1 = fakeTableOfContents(PKG_NAME_1);
+    Path apksPath1 = createApksArchiveFile(tableOfContents1, tmpDir.resolve("package1.apks"));
+
+    InstallMultiApksCommand command =
+        InstallMultiApksCommand.builder()
+            .setAdbServer(fakeServerOneDevice(device))
+            .setDeviceId(DEVICE_ID)
+            .setAdbPath(adbPath)
+            .setApksArchivePaths(ImmutableList.of(apksPath1))
+            .setAapt2Command(createFakeAapt2Command(ImmutableMap.of(PKG_NAME_1, 1L)))
+            .setAllowDowngrade(true)
+            .setAdbCommand(
+                // EXPECT the package to be installed because allow-downgrade is true.
+                createFakeAdbCommand(
+                    expectedInstallApks(PKG_NAME_1, tableOfContents1),
+                    /* expectedStaged= */ false,
+                    /* expectedEnableRollback= */ false,
+                    Optional.of(DEVICE_ID)))
+            .build();
+
+    device.injectShellCommandOutput(
+        "pm list packages --show-versioncode",
+        () -> String.format("package:%s versionCode:3", PKG_NAME_1));
     device.injectShellCommandOutput("pm list packages --apex-only --show-versioncode", () -> "");
     command.execute();
     assertAdbCommandExecuted();

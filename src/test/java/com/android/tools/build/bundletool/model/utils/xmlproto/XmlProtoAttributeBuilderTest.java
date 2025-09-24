@@ -65,6 +65,27 @@ public class XmlProtoAttributeBuilderTest {
   }
 
   @Test
+  public void hasValueAsBoolean_returnsFalseForStrings() {
+    XmlProtoAttributeBuilder attribute = createAttribute();
+    attribute.setValueAsString("hello");
+    assertThat(attribute.hasBooleanValue()).isFalse();
+  }
+
+  @Test
+  public void hasValueAsBoolean_returnsTrueForBooleanTrue() {
+    XmlProtoAttributeBuilder attribute = createAttribute();
+    attribute.setValueAsBoolean(true);
+    assertThat(attribute.hasBooleanValue()).isTrue();
+  }
+
+  @Test
+  public void hasValueAsBoolean_returnsTrueForBooleanFalse() {
+    XmlProtoAttributeBuilder attribute = createAttribute();
+    attribute.setValueAsBoolean(false);
+    assertThat(attribute.hasBooleanValue()).isTrue();
+  }
+
+  @Test
   public void setValueAsBoolean_overridesPreviousType() {
     XmlProtoAttributeBuilder attribute = createAttribute().setValueAsString("hello");
     attribute.setValueAsBoolean(true);

@@ -54,12 +54,14 @@ class ApkDescriptionHelper {
         }
         break;
       case STANDALONE:
-      case STANDALONE_FEATURE_MODULE:
         if (split.isApex()) {
           resultBuilder.setApexApkMetadata(createApexApkMetadata(split));
         } else {
           resultBuilder.setStandaloneApkMetadata(createStandaloneApkMetadata(split));
         }
+        break;
+      case STANDALONE_FEATURE_MODULE:
+        resultBuilder.setStandaloneApkMetadata(createStandaloneFeatureModuleApkMetadata(split));
         break;
       case ASSET_SLICE:
         resultBuilder.setAssetSliceMetadata(createSplitApkMetadata(split));
@@ -82,6 +84,12 @@ class ApkDescriptionHelper {
   private static SystemApkMetadata createSystemApkMetadata(ModuleSplit split) {
     return SystemApkMetadata.newBuilder()
         .addAllFusedModuleName(split.getAndroidManifest().getFusedModuleNames())
+        .build();
+  }
+
+  private static StandaloneApkMetadata createStandaloneFeatureModuleApkMetadata(ModuleSplit split) {
+    return createStandaloneApkMetadata(split).toBuilder()
+        .setSplitId(split.getAndroidManifest().getSplitId().orElse(""))
         .build();
   }
 

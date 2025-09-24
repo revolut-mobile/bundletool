@@ -188,6 +188,11 @@ public abstract class BuildApksCommand {
 
   private static final Flag<Path> P7ZIP_PATH_FLAG = Flag.path("7zip");
 
+  private static final Flag<Boolean> INJECT_MIN_SDK = Flag.booleanFlag("inject-min-sdk");
+
+  private static final Flag<Boolean> ENABLE_SPARSE_ENCODING_FLAG =
+      Flag.booleanFlag("enable-sparse-encoding");
+
   // Signing-related flags: should match flags from apksig library.
   private static final Flag<Path> KEYSTORE_FLAG = Flag.path("ks");
   private static final Flag<String> KEY_ALIAS_FLAG = Flag.string("ks-key-alias");
@@ -306,6 +311,8 @@ public abstract class BuildApksCommand {
 
   public abstract Optional<P7ZipCommand> getP7ZipCommand();
 
+  public abstract boolean getInjectMinSdk();
+
   public abstract ImmutableSet<Path> getRuntimeEnabledSdkBundlePaths();
 
   public abstract ImmutableSet<Path> getRuntimeEnabledSdkArchivePaths();
@@ -317,9 +324,12 @@ public abstract class BuildApksCommand {
 
   public abstract boolean getEnableBaseModuleMinSdkAsDefaultTargeting();
 
+
   public abstract Optional<FeatureModulesCustomConfig> getFeatureModulesCustomConfig();
 
   public abstract Optional<Integer> getMinModulesToEnableFeatureModulesConfig();
+
+  public abstract boolean getEnableSparseEncoding();
 
   public static Builder builder() {
     return new AutoValue_BuildApksCommand.Builder()
@@ -337,7 +347,9 @@ public abstract class BuildApksCommand {
         .setEnableApkSerializerWithoutBundleRecompression(true)
         .setRuntimeEnabledSdkBundlePaths(ImmutableSet.of())
         .setRuntimeEnabledSdkArchivePaths(ImmutableSet.of())
-        .setEnableBaseModuleMinSdkAsDefaultTargeting(false);
+        .setEnableBaseModuleMinSdkAsDefaultTargeting(false)
+        .setInjectMinSdk(false)
+        .setEnableSparseEncoding(false);
   }
 
   /** Builder for the {@link BuildApksCommand}. */
@@ -557,6 +569,9 @@ public abstract class BuildApksCommand {
     /** Provides a wrapper around the execution of the 7zip commands. */
     public abstract Builder setP7ZipCommand(P7ZipCommand value);
 
+    /** Whether to inject the minSdk of the variant into all APK manifests. */
+    public abstract Builder setInjectMinSdk(boolean value);
+
     /**
      * Provides paths to {@link SdkBundle}s for the runtime-enabled SDKs that the {@link AppBundle}
      * depends on. Each file must have extension ".asb".
@@ -596,6 +611,7 @@ public abstract class BuildApksCommand {
      */
     public abstract Builder setEnableBaseModuleMinSdkAsDefaultTargeting(boolean value);
 
+
     /**
      * Custom configurations for feature modules.
      *
@@ -607,6 +623,8 @@ public abstract class BuildApksCommand {
     /** Minimum number of modules in a variant to enable feature modules config. */
     public abstract Builder setMinModulesToEnableFeatureModulesConfig(
         int minModulesToEnableFeatureModulesConfig);
+
+    public abstract Builder setEnableSparseEncoding(boolean enableSparseEncoding);
 
     abstract BuildApksCommand autoBuild();
 
@@ -877,6 +895,10 @@ public abstract class BuildApksCommand {
               buildApksCommand.setP7ZipCommand(
                   P7ZipCommand.defaultP7ZipCommand(p7zipPath, numThreads));
             });
+    INJECT_MIN_SDK.getValue(flags).ifPresent(buildApksCommand::setInjectMinSdk);
+    ENABLE_SPARSE_ENCODING_FLAG
+        .getValue(flags)
+        .ifPresent(buildApksCommand::setEnableSparseEncoding);
 
     if (RUNTIME_ENABLED_SDK_BUNDLE_LOCATIONS_FLAG.getValue(flags).isPresent()
         && RUNTIME_ENABLED_SDK_ARCHIVE_LOCATIONS_FLAG.getValue(flags).isPresent()) {
@@ -1587,6 +1609,22 @@ public abstract class BuildApksCommand {
                 .setDescription(
                     "Path to the 7zip binary to use. Mandatory if Android App Bundle requires 7zip"
                         + " compression.")
+                .build())
+        .addFlag(
+            FlagDescription.builder()
+                .setFlagName(INJECT_MIN_SDK.getName())
+                .setOptional(true)
+                .setDescription(
+                    "If set, injects the minSdk of each variant into the Android manifests of all "
+                        + "generated APKs.")
+                .build())
+        .addFlag(
+            FlagDescription.builder()
+                .setFlagName(ENABLE_SPARSE_ENCODING_FLAG.getName())
+                .setOptional(true)
+                .setDescription(
+                    "If set, enables the generation of a variant with sparse encoding for S+ "
+                        + "devices.")
                 .build())
         .addFlag(
             FlagDescription.builder()

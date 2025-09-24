@@ -35,7 +35,7 @@ public final class BundleToolMainTest {
     MockitoAnnotations.initMocks(this);
   }
 
-  @Mock private Runtime mockRuntime;
+  @Mock private BundleToolMain.RuntimeWrapper mockRuntime;
 
   private final ArgumentCaptor<Integer> exitCode = ArgumentCaptor.forClass(Integer.class);
 

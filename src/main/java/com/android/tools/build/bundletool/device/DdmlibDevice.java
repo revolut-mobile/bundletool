@@ -34,6 +34,8 @@ import com.android.ddmlib.ShellCommandUnresponsiveException;
 import com.android.ddmlib.SyncException;
 import com.android.ddmlib.TimeoutException;
 import com.android.sdklib.AndroidVersion;
+import com.android.sdklib.AndroidVersion.VersionCodes;
+import com.android.tools.build.bundletool.model.AndroidManifest;
 import com.android.tools.build.bundletool.model.exceptions.CommandExecutionException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -142,10 +144,20 @@ public class DdmlibDevice extends Device {
             .execute(ADB_TIMEOUT_MS, MILLISECONDS));
   }
 
+  private boolean canGetGlExtensions() {
+    boolean isApi25 = getVersion().getApiLevel() == VersionCodes.N_MR1;
+    boolean isWearable = getProperty("ro.build.characteristics").orElse("").contains("watch");
+    return !(isApi25 && isWearable);
+  }
+
   @Override
   public ImmutableList<String> getGlExtensions() {
-    return glExtensionsParser.parse(
-        new AdbShellCommandTask(this, GL_EXTENSIONS_COMMAND).execute(ADB_TIMEOUT_MS, MILLISECONDS));
+    if (canGetGlExtensions()) {
+      return glExtensionsParser.parse(
+          new AdbShellCommandTask(this, GL_EXTENSIONS_COMMAND)
+              .execute(ADB_TIMEOUT_MS, MILLISECONDS));
+    }
+    return ImmutableList.of();
   }
 
   @Override
@@ -154,7 +166,9 @@ public class DdmlibDevice extends Device {
       IShellOutputReceiver receiver,
       long maxTimeToOutputResponse,
       TimeUnit maxTimeUnits)
-      throws TimeoutException, AdbCommandRejectedException, ShellCommandUnresponsiveException,
+      throws TimeoutException,
+          AdbCommandRejectedException,
+          ShellCommandUnresponsiveException,
           IOException {
     device.executeShellCommand(command, receiver, maxTimeToOutputResponse, maxTimeUnits);
   }
@@ -242,12 +256,16 @@ public class DdmlibDevice extends Device {
 
   @Override
   public boolean supportsPrivacySandbox() {
-    return device.services().containsKey("sdk_sandbox");
+    return device.services().containsKey("sdk_sandbox")
+        && device.getVersion().isGreaterOrEqualThan(AndroidManifest.SDK_SANDBOX_MIN_VERSION);
   }
 
   private void pushFiles(
       RemoteCommandExecutor executor, String splitsPath, ImmutableList<Path> files)
-      throws IOException, SyncException, TimeoutException, AdbCommandRejectedException,
+      throws IOException,
+          SyncException,
+          TimeoutException,
+          AdbCommandRejectedException,
           ShellCommandUnresponsiveException {
     try {
       // Try to push files normally. Will fail if ADB shell doesn't have permission to write.
@@ -348,7 +366,9 @@ public class DdmlibDevice extends Device {
 
     @FormatMethod
     private void executeAndPrint(String commandFormat, String... args)
-        throws TimeoutException, AdbCommandRejectedException, ShellCommandUnresponsiveException,
+        throws TimeoutException,
+            AdbCommandRejectedException,
+            ShellCommandUnresponsiveException,
             IOException {
       String command = formatCommandWithArgs(commandFormat, args);
       lastOutputLine = null;

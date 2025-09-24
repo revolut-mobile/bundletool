@@ -92,6 +92,7 @@ public abstract class ModuleConditions {
       moduleTargeting.setDeviceGroupTargeting(getDeviceGroupsCondition().get().toTargeting());
     }
 
+
     return moduleTargeting.build();
   }
 
