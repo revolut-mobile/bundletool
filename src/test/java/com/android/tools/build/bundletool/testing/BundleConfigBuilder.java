@@ -18,8 +18,7 @@ package com.android.tools.build.bundletool.testing;
 
 import com.android.bundle.Config.BundleConfig;
 import com.android.bundle.Config.Bundletool;
-import com.android.bundle.Config.Optimizations;
-import com.android.bundle.Config.ResourceOptimizations;
+import com.android.bundle.Config.Optimizations.InjectMinSdkSetting;
 import com.android.bundle.Config.ResourceOptimizations.SparseEncoding;
 import com.android.bundle.Config.SplitDimension;
 import com.android.bundle.Config.StandaloneConfig.DexMergingStrategy;
@@ -107,14 +106,37 @@ public class BundleConfigBuilder {
     return this;
   }
 
+  @CanIgnoreReturnValue
+  public BundleConfigBuilder setInjectMinSdk() {
+    builder
+        .getOptimizationsBuilder()
+        .setInjectMinSdkSetting(InjectMinSdkSetting.ENABLED);
+    return this;
+  }
+
+  @CanIgnoreReturnValue
+  public BundleConfigBuilder setInjectMinSdkDisabled() {
+    builder
+        .getOptimizationsBuilder()
+        .setInjectMinSdkSetting(InjectMinSdkSetting.DISABLED);
+    return this;
+  }
+
+  @CanIgnoreReturnValue
   public BundleConfigBuilder setSparseEncodingForSdk32() {
-    builder.setOptimizations(
-        Optimizations.newBuilder()
-            .setResourceOptimizations(
-                ResourceOptimizations.newBuilder()
-                    .setSparseEncoding(SparseEncoding.VARIANT_FOR_SDK_32)
-                    .build())
-            .build());
+    builder
+        .getOptimizationsBuilder()
+        .getResourceOptimizationsBuilder()
+        .setSparseEncoding(SparseEncoding.VARIANT_FOR_SDK_32);
+    return this;
+  }
+
+  @CanIgnoreReturnValue
+  public BundleConfigBuilder setSparseEncodingDisabled() {
+    builder
+        .getOptimizationsBuilder()
+        .getResourceOptimizationsBuilder()
+        .setSparseEncoding(SparseEncoding.DISABLED);
     return this;
   }
 

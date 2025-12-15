@@ -169,9 +169,11 @@ import com.android.bundle.Config.BundleConfig;
 import com.android.bundle.Config.BundleConfig.BundleType;
 import com.android.bundle.Config.Bundletool;
 import com.android.bundle.Config.Optimizations;
+import com.android.bundle.Config.Optimizations.InjectMinSdkSetting;
 import com.android.bundle.Config.ResourceOptimizations;
 import com.android.bundle.Config.ResourceOptimizations.CollapsedResourceNames;
 import com.android.bundle.Config.ResourceOptimizations.ResourceTypeAndName;
+import com.android.bundle.Config.ResourceOptimizations.SparseEncoding;
 import com.android.bundle.Config.SplitDimension.Value;
 import com.android.bundle.Config.StandaloneConfig;
 import com.android.bundle.Config.StandaloneConfig.FeatureModulesMode;
@@ -228,6 +230,7 @@ import com.android.tools.build.bundletool.testing.TestModule;
 import com.android.tools.build.bundletool.testing.truth.zip.TruthZip;
 import com.android.zipflinger.Entry;
 import com.android.zipflinger.ZipMap;
+import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
@@ -266,6 +269,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -1194,6 +1198,7 @@ public class BuildApksManagerTest {
                 builder ->
                     builder.setManifest(
                         androidManifest("com.test.app", withMinSdkVersion(ANDROID_L_API_VERSION))))
+            .setBundleConfig(BundleConfigBuilder.create().setInjectMinSdkDisabled().build())
             .build();
     TestComponent.useTestModule(
         this,
@@ -1212,6 +1217,193 @@ public class BuildApksManagerTest {
   }
 
 
+  public static final Version MIN_VERSION_WITH_DEFAULT_SPARSE_ENCODING = Version.of("1.18.3");
+
+  @DataPoints("VersionsForSparseEncodingTests")
+  public static final ImmutableSet<Version> OPTIMIZATION_TEST_VERSIONS =
+      ImmutableSet.of(
+          BundleToolVersion.getCurrentVersion(),
+          Version.of("1.18.2"),
+          MIN_VERSION_WITH_DEFAULT_SPARSE_ENCODING);
+
+  @DataPoints("InjectMinSdkSetting")
+  public static final ImmutableSet<InjectMinSdkSetting> INJECT_MIN_SDK_SETTINGS =
+      ImmutableSet.of(
+          InjectMinSdkSetting.UNSPECIFIED,
+          InjectMinSdkSetting.DISABLED,
+          InjectMinSdkSetting.ENABLED);
+
+  @DataPoints("DeprecatedInjectMinSdkValues")
+  public static final ImmutableSet<Boolean> DEPRECATED_INJECT_MIN_SDK_VALUES =
+      ImmutableSet.of(false, true);
+
+  @DataPoints("SparseEncoding")
+  public static final ImmutableSet<SparseEncoding> SPARSE_ENCODING_VALUES =
+      ImmutableSet.of(
+          SparseEncoding.UNSPECIFIED,
+          SparseEncoding.VARIANT_FOR_SDK_32,
+          SparseEncoding.DISABLED);
+
+  @Test
+  @Theory
+  public void sparseEncodingOptimization_combinations(
+      @FromDataPoints("VersionsForSparseEncodingTests") Version bundletoolVersion,
+      @FromDataPoints("DeprecatedInjectMinSdkValues") boolean deprecatedInjectMinSdk,
+      @FromDataPoints("InjectMinSdkSetting") InjectMinSdkSetting injectMinSdkSetting,
+      @FromDataPoints("SparseEncoding") SparseEncoding sparseEncoding)
+      throws Exception {
+    BundleConfig.Builder configBuilder =
+        BundleConfig.newBuilder()
+            .setBundletool(Bundletool.newBuilder().setVersion(bundletoolVersion.toString()));
+    Optimizations.Builder optimizationsBuilder =
+        configBuilder.getOptimizationsBuilder()
+            .setInjectMinSdk(deprecatedInjectMinSdk)
+            .setInjectMinSdkSetting(injectMinSdkSetting);
+    optimizationsBuilder.getResourceOptimizationsBuilder().setSparseEncoding(sparseEncoding);
+
+    AppBundle appBundle =
+        new AppBundleBuilder()
+            .addModule(
+                "base",
+                builder ->
+                    builder
+                        .addFile("assets/a.txt")
+                        .setManifest(androidManifest(
+                            "com.test.app", withMinSdkVersion(ANDROID_L_API_VERSION)))
+                        .setResourceTable(resourceTableWithTestLabel("Test feature")))
+            .addModule(
+                "feature",
+                builder ->
+                    builder
+                        .addFile("assets/b.txt")
+                        .setManifest(
+                            androidManifestForFeature(
+                                "com.test.app",
+                                withFusingAttribute(true),
+                                withTitle("@string/test_label", TEST_LABEL_RESOURCE_ID))))
+            .setBundleConfig(configBuilder.build())
+            .build();
+
+    TestComponent.useTestModule(
+        this,
+        createTestModuleBuilder().withAppBundle(appBundle).withOutputPath(outputFilePath).build());
+
+    buildApksManager.execute();
+
+    ZipFile apkSetFile = openZipFile(outputFilePath.toFile());
+    BuildApksResult result = extractTocFromApkSetFile(apkSetFile, outputDir);
+    ImmutableList<Variant> splitApkVariants = splitApkVariants(result);
+
+    // inject_min_sdk is enabled if we're on a bundletool version where it's on by default (if it's
+    // not explicitly disabled) or if it's explicitly enabled on a version before that.
+    // We need to check both the deprecated boolean as well as the new enum setting.
+    boolean expectedInjectMinSdk;
+    switch (injectMinSdkSetting) {
+      case ENABLED:
+        expectedInjectMinSdk = true;
+        break;
+      case DISABLED:
+        expectedInjectMinSdk = false;
+        break;
+      default:
+        // Setting is UNSPECIFIED, check deprecated boolean
+        if (deprecatedInjectMinSdk) {
+          expectedInjectMinSdk = true;
+        } else {
+          // Both new setting and deprecated boolean are not set, use version default.
+          expectedInjectMinSdk =
+              bundletoolVersion.compareTo(MIN_VERSION_WITH_DEFAULT_SPARSE_ENCODING) >= 0;
+        }
+    }
+
+    // enable_sparse_encoding is enabled if we're on a bundletool version where it's on by default
+    // (if it's not explicitly disabled) or if it's explicitly enabled on a version before that.
+    // However, it's only allowed if inject_min_sdk is also enabled.
+    boolean expectedSparseEncoding;
+    if (expectedInjectMinSdk) {
+      switch (sparseEncoding) {
+        case VARIANT_FOR_SDK_32:
+          expectedSparseEncoding = true;
+          break;
+        case DISABLED:
+          expectedSparseEncoding = false;
+          break;
+        default:
+          // Setting is UNSPECIFIED, use version default.
+          expectedSparseEncoding =
+              bundletoolVersion.compareTo(MIN_VERSION_WITH_DEFAULT_SPARSE_ENCODING) >= 0;
+      }
+    } else {
+      expectedSparseEncoding = false;
+    }
+
+    // We build a map of strings of the format "<variant number>:<module name>" to their minSdk
+    ImmutableMap<String, Optional<Integer>> splitMinSdkVersions =
+        splitApkVariants.stream()
+            .flatMap(
+                variant ->
+                    variant.getApkSetList().stream()
+                        .map(
+                            apkSet ->
+                                VariantAndApkSet.builder()
+                                    .setVariantNumber(variant.getVariantNumber())
+                                    .setApkSet(apkSet)
+                                    .build()))
+            .flatMap(
+                numberAndApkSet ->
+                    numberAndApkSet.apkSet().getApkDescriptionList().stream()
+                        .map(
+                            apkDescription ->
+                                VariantAndApkDescription.builder()
+                                    .setVariantNumber(numberAndApkSet.variantNumber())
+                                    .setApkDescription(apkDescription)
+                                    .build()))
+            .map(
+                numberAndApkDescription -> {
+                  ApkDescription apkDescription = numberAndApkDescription.apkDescription();
+                  File apkFile;
+                  try {
+                    apkFile =
+                        extractFromApkSetFile(
+                            apkSetFile, apkDescription.getPath(), outputDir);
+                  } catch (Exception e) {
+                    throw new RuntimeException("Error loading apk file", e);
+                  }
+                  AndroidManifest manifest = extractAndroidManifest(apkFile, tmpDir);
+                  String splitId = manifest.getSplitId().orElse("base");
+                  String numberAndSplitId =
+                      String.format("%d:%s", numberAndApkDescription.variantNumber(), splitId);
+                  return Maps.immutableEntry(numberAndSplitId, manifest.getMinSdkVersion());
+                })
+            .collect(
+                toImmutableMap(Map.Entry::getKey, Map.Entry::getValue, (prev, next) -> next));
+
+    // Assert injection of min-SDK is applied as expected
+    if (expectedInjectMinSdk) {
+      assertThat(splitMinSdkVersions).hasSize(expectedSparseEncoding ? 4 : 2);
+      assertThat(splitMinSdkVersions.get("0:base")).hasValue(ANDROID_L_API_VERSION);
+      assertThat(splitMinSdkVersions.get("0:feature")).hasValue(ANDROID_L_API_VERSION);
+      if (expectedSparseEncoding) {
+        assertThat(splitMinSdkVersions.get("1:base")).hasValue(ANDROID_S_V2_API_VERSION);
+        assertThat(splitMinSdkVersions.get("1:feature")).hasValue(ANDROID_S_V2_API_VERSION);
+      }
+    } else {
+      assertThat(splitMinSdkVersions).hasSize(2);
+      assertThat(splitMinSdkVersions.get("0:base")).hasValue(ANDROID_L_API_VERSION);
+      assertThat(splitMinSdkVersions.get("0:feature")).isEmpty();
+    }
+
+    // Assert sparse encoding is applied as expected
+    if (expectedSparseEncoding) {
+      assertThat(splitApkVariants).hasSize(2);
+      assertThat(splitApkVariants.get(0).getVariantProperties().getSparseEncoding()).isFalse();
+      assertThat(splitApkVariants.get(1).getVariantProperties().getSparseEncoding()).isTrue();
+    } else {
+      assertThat(splitApkVariants).hasSize(1);
+      assertThat(splitApkVariants.get(0).getVariantProperties().getSparseEncoding()).isFalse();
+    }
+  }
+
   @Test
   public void buildApksCommand_enableSparseEncoding() throws Exception {
     AppBundle appBundle =
@@ -1228,7 +1420,8 @@ public class BuildApksManagerTest {
         createTestModuleBuilder()
             .withAppBundle(appBundle)
             .withOutputPath(outputFilePath)
-            .withCustomBuildApksCommandSetter(command -> command.setEnableSparseEncoding(true))
+            .withCustomBuildApksCommandSetter(
+                command -> command.setEnableSparseEncoding(true).setInjectMinSdk(true))
             .build());
 
     buildApksManager.execute();
@@ -2212,6 +2405,7 @@ public class BuildApksManagerTest {
                             withOnDemandAttribute(true),
                             withTitle("@string/test_label", TEST_LABEL_RESOURCE_ID),
                             withFusingAttribute(true))))
+            .setBundleConfig(BundleConfigBuilder.create().setInjectMinSdkDisabled().build())
             .build();
     TestComponent.useTestModule(
         this,
@@ -2254,7 +2448,11 @@ public class BuildApksManagerTest {
                 "base",
                 builder ->
                     builder.addFile("dex/classes.dex").setManifest(androidManifest("com.test.app")))
-            .setBundleConfig(BundleConfigBuilder.create().setUncompressDexFiles(false).build())
+            .setBundleConfig(
+                BundleConfigBuilder.create()
+                    .setUncompressDexFiles(false)
+                    .setInjectMinSdkDisabled()
+                    .build())
             .build();
     TestComponent.useTestModule(
         this,
@@ -2290,7 +2488,9 @@ public class BuildApksManagerTest {
                         .setNativeConfig(
                             nativeLibraries(
                                 targetedNativeDirectory("lib/x86", nativeDirectoryTargeting(X86))))
-                        .setManifest(androidManifest("com.test.app", withMinSdkVersion(31))))
+                        .setManifest(
+                            androidManifest(
+                                "com.test.app", withMinSdkVersion(ANDROID_S_API_VERSION))))
             .build();
     TestComponent.useTestModule(
         this,
@@ -2301,7 +2501,9 @@ public class BuildApksManagerTest {
     ZipFile apkSetFile = openZipFile(outputFilePath.toFile());
     BuildApksResult result = extractTocFromApkSetFile(apkSetFile, outputDir);
 
-    assertThat(splitApkVariants(result)).hasSize(1);
+    // There should be two variants, one that targets S(31) and another sparse-encoded one for
+    // Sv2+(32)
+    assertThat(splitApkVariants(result)).hasSize(2);
     ImmutableList<Variant> variants = splitApkVariants(result);
     variants.forEach(variant -> assertThat(variant.hasTargeting()).isTrue());
     assertThat(
@@ -2310,7 +2512,7 @@ public class BuildApksManagerTest {
                     variant ->
                         variant.getTargeting().getSdkVersionTargeting().getValueList().stream())
                 .collect(toImmutableList()))
-        .containsExactly(sdkVersionFrom(31));
+        .containsExactly(S_SDK_VERSION, S2_V2_SDK_VERSION);
   }
 
   @Test
@@ -2560,6 +2762,7 @@ public class BuildApksManagerTest {
                         /* negate= */ false,
                         /* stripSuffix= */ true,
                         /* defaultSuffix= */ "astc")
+                    .setInjectMinSdkDisabled()
                     .build())
             .addMetadataFile(
                 BUNDLETOOL_NAMESPACE, DEVICE_GROUP_CONFIG_JSON_FILE_NAME, testConfigJson)
@@ -2627,6 +2830,7 @@ public class BuildApksManagerTest {
                         /* negate= */ false,
                         /* stripSuffix= */ true,
                         /* defaultSuffix= */ "astc")
+                    .setInjectMinSdkDisabled()
                     .build())
             .addMetadataFile(
                 BUNDLETOOL_NAMESPACE, DEVICE_GROUP_CONFIG_JSON_FILE_NAME, testConfigJson)
@@ -2694,6 +2898,7 @@ public class BuildApksManagerTest {
                         /* negate= */ false,
                         /* stripSuffix= */ true,
                         /* defaultSuffix= */ "0")
+                    .setInjectMinSdkDisabled()
                     .build())
             .addMetadataFile(
                 BUNDLETOOL_NAMESPACE, DEVICE_GROUP_CONFIG_JSON_FILE_NAME, testConfigJson)
@@ -2761,6 +2966,7 @@ public class BuildApksManagerTest {
                         /* negate= */ false,
                         /* stripSuffix= */ true,
                         /* defaultSuffix= */ "astc")
+                    .setInjectMinSdkDisabled()
                     .build())
             .addMetadataFile(
                 BUNDLETOOL_NAMESPACE, DEVICE_GROUP_CONFIG_JSON_FILE_NAME, testConfigJson)
@@ -2828,6 +3034,7 @@ public class BuildApksManagerTest {
                         /* negate= */ false,
                         /* stripSuffix= */ true,
                         /* defaultSuffix= */ "a")
+                    .setInjectMinSdkDisabled()
                     .build())
             .addMetadataFile(
                 BUNDLETOOL_NAMESPACE, DEVICE_GROUP_CONFIG_JSON_FILE_NAME, testConfigJson)
@@ -2904,6 +3111,7 @@ public class BuildApksManagerTest {
                 BundleConfigBuilder.create()
                     .setUncompressNativeLibraries(false)
                     .setUncompressDexFiles(false)
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -2940,7 +3148,11 @@ public class BuildApksManagerTest {
                             nativeLibraries(
                                 targetedNativeDirectory("lib/x86", nativeDirectoryTargeting(X86))))
                         .setManifest(androidManifest("com.test.app")))
-            .setBundleConfig(BundleConfigBuilder.create().setUncompressDexFiles(false).build())
+            .setBundleConfig(
+                BundleConfigBuilder.create()
+                    .setUncompressDexFiles(false)
+                    .setInjectMinSdkDisabled()
+                    .build())
             .build();
     TestComponent.useTestModule(
         this,
@@ -3011,6 +3223,7 @@ public class BuildApksManagerTest {
                 BundleConfigBuilder.create()
                     .setUncompressNativeLibraries(true)
                     .setUncompressDexFiles(false)
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -3065,6 +3278,7 @@ public class BuildApksManagerTest {
                 BundleConfigBuilder.create()
                     .setUncompressNativeLibraries(true)
                     .setUncompressDexFiles(false)
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -3099,6 +3313,7 @@ public class BuildApksManagerTest {
                 BundleConfigBuilder.create()
                     .setUncompressDexFilesForVariant(UncompressedDexTargetSdk.SDK_31)
                     .setUncompressDexFiles(true)
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -3133,6 +3348,7 @@ public class BuildApksManagerTest {
                 BundleConfigBuilder.create()
                     .setUncompressDexFilesForVariant(UncompressedDexTargetSdk.SDK_33)
                     .setUncompressDexFiles(true)
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -3173,6 +3389,7 @@ public class BuildApksManagerTest {
                     .setUncompressDexFilesForVariant(UncompressedDexTargetSdk.SDK_33)
                     .setUncompressDexFiles(true)
                     .setUncompressNativeLibraries(true)
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -3217,7 +3434,11 @@ public class BuildApksManagerTest {
                 "base",
                 builder ->
                     builder.addFile("dex/classes.dex").setManifest(androidManifest("com.test.app")))
-            .setBundleConfig(BundleConfigBuilder.create().setUncompressDexFiles(true).build())
+            .setBundleConfig(
+                BundleConfigBuilder.create()
+                    .setUncompressDexFiles(true)
+                    .setInjectMinSdkDisabled()
+                    .build())
             .build();
     TestComponent.useTestModule(
         this,
@@ -3261,7 +3482,11 @@ public class BuildApksManagerTest {
                 "base",
                 builder ->
                     builder.addFile("dex/classes.dex").setManifest(androidManifest("com.test.app")))
-            .setBundleConfig(BundleConfigBuilder.create().setUncompressDexFiles(false).build())
+            .setBundleConfig(
+                BundleConfigBuilder.create()
+                    .setUncompressDexFiles(false)
+                    .setInjectMinSdkDisabled()
+                    .build())
             .build();
     TestComponent.useTestModule(
         this,
@@ -3328,7 +3553,11 @@ public class BuildApksManagerTest {
                                 .addXmlResource(
                                     "optout", AppBundle.UNCOMPRESSED_DEX_OPT_OUT_XML_PATH)
                                 .build()))
-            .setBundleConfig(BundleConfigBuilder.create().setUncompressDexFiles(true).build())
+            .setBundleConfig(
+                BundleConfigBuilder.create()
+                    .setUncompressDexFiles(true)
+                    .setInjectMinSdkDisabled()
+                    .build())
             .build();
     TestComponent.useTestModule(
         this,
@@ -3415,7 +3644,8 @@ public class BuildApksManagerTest {
                 builder ->
                     builder.setManifest(
                         androidManifest("com.test.app", withTargetSdkVersion("O.fingerprint"))))
-            .setBundleConfig(BundleConfigBuilder.create().setSparseEncodingForSdk32().build())
+            .setBundleConfig(
+                BundleConfigBuilder.create().setInjectMinSdk().setSparseEncodingForSdk32().build())
             .build();
     TestComponent.useTestModule(
         this,
@@ -3471,6 +3701,7 @@ public class BuildApksManagerTest {
                             androidManifest("com.test.app", withTargetSdkVersion("O.fingerprint"))))
             .setBundleConfig(
                 BundleConfigBuilder.create()
+                    .setInjectMinSdk()
                     .setSparseEncodingForSdk32()
                     .setUncompressNativeLibraries(true)
                     .setUncompressDexFiles(true)
@@ -3579,8 +3810,9 @@ public class BuildApksManagerTest {
     ZipFile apkSetFile = openZipFile(outputFilePath.toFile());
     BuildApksResult result = extractTocFromApkSetFile(apkSetFile, outputDir);
     ImmutableList<Variant> splitApkVariants = splitApkVariants(result);
-    assertThat(splitApkVariants).hasSize(1);
+    assertThat(splitApkVariants).hasSize(2);
     assertThat(splitApkVariants.get(0).getVariantProperties()).isEqualToDefaultInstance();
+    assertThat(splitApkVariants.get(1).getVariantProperties().getSparseEncoding()).isTrue();
   }
 
   @Test
@@ -3602,6 +3834,7 @@ public class BuildApksManagerTest {
                 BundleConfigBuilder.create()
                     .setUncompressNativeLibraries(true)
                     .setUncompressDexFiles(true)
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -3682,7 +3915,8 @@ public class BuildApksManagerTest {
                 variantAbiTargeting(X86, ImmutableSet.of(X86_64, MIPS)),
                 variantSdkTargeting(
                     LOWEST_SDK_VERSION,
-                    ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION))));
+                    ImmutableSet.of(
+                        L_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION, S2_V2_SDK_VERSION))));
     assertThat(standaloneVariantsByAbi.get(toAbi(X86_64)).getTargeting())
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
@@ -3690,7 +3924,8 @@ public class BuildApksManagerTest {
                 variantAbiTargeting(X86_64, ImmutableSet.of(X86, MIPS)),
                 variantSdkTargeting(
                     LOWEST_SDK_VERSION,
-                    ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION))));
+                    ImmutableSet.of(
+                        L_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION, S2_V2_SDK_VERSION))));
     assertThat(standaloneVariantsByAbi.get(toAbi(MIPS)).getTargeting())
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
@@ -3698,7 +3933,8 @@ public class BuildApksManagerTest {
                 variantAbiTargeting(MIPS, ImmutableSet.of(X86, X86_64)),
                 variantSdkTargeting(
                     LOWEST_SDK_VERSION,
-                    ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION))));
+                    ImmutableSet.of(
+                        L_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION, S2_V2_SDK_VERSION))));
     for (Variant variant : standaloneVariantsByAbi.values()) {
       assertThat(variant.getApkSetList()).hasSize(1);
       ApkSet apkSet = variant.getApkSet(0);
@@ -5044,25 +5280,39 @@ public class BuildApksManagerTest {
     ZipFile apkSetFile = openZipFile(outputFilePath.toFile());
     BuildApksResult result = extractTocFromApkSetFile(apkSetFile, outputDir);
 
-    // 3 standalone APK variants, 2 split APK variant
-    assertThat(result.getVariantList()).hasSize(5);
+    // 3 standalone APK variants, 3 split APK variant
+    assertThat(result.getVariantList()).hasSize(6);
 
     VariantTargeting lSplitVariantTargeting =
-        variantSdkTargeting(L_SDK_VERSION, ImmutableSet.of(LOWEST_SDK_VERSION, M_SDK_VERSION));
+        variantSdkTargeting(
+            L_SDK_VERSION,
+            ImmutableSet.of(LOWEST_SDK_VERSION, M_SDK_VERSION, S2_V2_SDK_VERSION));
     VariantTargeting mSplitVariantTargeting =
-        variantSdkTargeting(M_SDK_VERSION, ImmutableSet.of(LOWEST_SDK_VERSION, L_SDK_VERSION));
+        variantSdkTargeting(
+            M_SDK_VERSION,
+            ImmutableSet.of(LOWEST_SDK_VERSION, L_SDK_VERSION, S2_V2_SDK_VERSION));
+    VariantTargeting sV2SplitVariantTargeting =
+        variantSdkTargeting(
+            S2_V2_SDK_VERSION,
+            ImmutableSet.of(LOWEST_SDK_VERSION, L_SDK_VERSION, M_SDK_VERSION));
     VariantTargeting standaloneX86VariantTargeting =
         mergeVariantTargeting(
             variantAbiTargeting(X86, ImmutableSet.of(X86_64, RISCV64)),
-            variantSdkTargeting(LOWEST_SDK_VERSION, ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION)));
+            variantSdkTargeting(
+                LOWEST_SDK_VERSION,
+                ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION, S2_V2_SDK_VERSION)));
     VariantTargeting standaloneX64VariantTargeting =
         mergeVariantTargeting(
             variantAbiTargeting(X86_64, ImmutableSet.of(X86, RISCV64)),
-            variantSdkTargeting(LOWEST_SDK_VERSION, ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION)));
+            variantSdkTargeting(
+                LOWEST_SDK_VERSION,
+                ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION, S2_V2_SDK_VERSION)));
     VariantTargeting standaloneRiscV64VariantTargeting =
         mergeVariantTargeting(
             variantAbiTargeting(RISCV64, ImmutableSet.of(X86, X86_64)),
-            variantSdkTargeting(LOWEST_SDK_VERSION, ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION)));
+            variantSdkTargeting(
+                LOWEST_SDK_VERSION,
+                ImmutableSet.of(L_SDK_VERSION, M_SDK_VERSION, S2_V2_SDK_VERSION)));
 
     ImmutableMap<VariantTargeting, Variant> variantsByTargeting =
         Maps.uniqueIndex(result.getVariantList(), Variant::getTargeting);
@@ -5070,6 +5320,7 @@ public class BuildApksManagerTest {
             ImmutableSet.builder()
                 .addAll(apkNamesInVariant(variantsByTargeting.get(lSplitVariantTargeting)))
                 .addAll(apkNamesInVariant(variantsByTargeting.get(mSplitVariantTargeting)))
+                .addAll(apkNamesInVariant(variantsByTargeting.get(sV2SplitVariantTargeting)))
                 .build())
         .containsExactly(
             "base-master.apk",
@@ -5079,11 +5330,16 @@ public class BuildApksManagerTest {
             "base-master_2.apk",
             "base-x86_2.apk",
             "base-x86_64_2.apk",
-            "base-riscv64_2.apk");
+            "base-riscv64_2.apk",
+            "base-master_3.apk",
+            "base-x86_3.apk",
+            "base-x86_64_3.apk",
+            "base-riscv64_3.apk");
     assertThat(variantsByTargeting.keySet())
         .containsExactly(
             lSplitVariantTargeting,
             mSplitVariantTargeting,
+            sV2SplitVariantTargeting,
             standaloneX86VariantTargeting,
             standaloneX64VariantTargeting,
             standaloneRiscV64VariantTargeting);
@@ -5654,17 +5910,18 @@ public class BuildApksManagerTest {
 
     // Variants
     ImmutableList<Variant> variants = splitApkVariants(result);
-    assertThat(variants).hasSize(1);
-    Variant splitApkVariant = variants.get(0);
-    List<ApkSet> apks = splitApkVariant.getApkSetList();
-    assertThat(apks).hasSize(1);
+    assertThat(variants).hasSize(2);
+    for (Variant splitApkVariant : variants) {
+      List<ApkSet> apks = splitApkVariant.getApkSetList();
+      assertThat(apks).hasSize(1);
 
-    ApkSet baseSplits = apks.get(0);
-    assertThat(baseSplits.getModuleMetadata().getName()).isEqualTo("base");
-    assertThat(baseSplits.getModuleMetadata().getDeliveryType())
-        .isEqualTo(DeliveryType.INSTALL_TIME);
-    assertThat(baseSplits.getApkDescriptionList()).hasSize(1);
-    assertThat(apkSetFile).hasFile(baseSplits.getApkDescription(0).getPath());
+      ApkSet baseSplits = apks.get(0);
+      assertThat(baseSplits.getModuleMetadata().getName()).isEqualTo("base");
+      assertThat(baseSplits.getModuleMetadata().getDeliveryType())
+          .isEqualTo(DeliveryType.INSTALL_TIME);
+      assertThat(baseSplits.getApkDescriptionList()).hasSize(1);
+      assertThat(apkSetFile).hasFile(baseSplits.getApkDescription(0).getPath());
+    }
 
     // Asset Slices
     List<AssetSliceSet> sliceSets = result.getAssetSliceSetList();
@@ -5794,7 +6051,10 @@ public class BuildApksManagerTest {
                                 "com.test.app",
                                 withTitle("@string/test_label", TEST_LABEL_RESOURCE_ID))))
             .setBundleConfig(
-                BundleConfigBuilder.create().setUncompressNativeLibraries(false).build())
+                BundleConfigBuilder.create()
+                    .setUncompressNativeLibraries(false)
+                    .setInjectMinSdkDisabled()
+                    .build())
             .build();
 
     TestComponent.useTestModule(
@@ -6023,30 +6283,43 @@ public class BuildApksManagerTest {
 
     VariantTargeting lSplitVariantTargeting =
         variantSdkTargeting(
-            L_SDK_VERSION, ImmutableSet.of(LOWEST_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION));
+            L_SDK_VERSION,
+            ImmutableSet.of(LOWEST_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION, S2_V2_SDK_VERSION));
     VariantTargeting mSplitVariantTargeting =
         variantSdkTargeting(
-            M_SDK_VERSION, ImmutableSet.of(LOWEST_SDK_VERSION, L_SDK_VERSION, S_SDK_VERSION));
+            M_SDK_VERSION,
+            ImmutableSet.of(LOWEST_SDK_VERSION, L_SDK_VERSION, S_SDK_VERSION, S2_V2_SDK_VERSION));
     VariantTargeting sSplitVariantTargeting =
         variantSdkTargeting(
-            S_SDK_VERSION, ImmutableSet.of(LOWEST_SDK_VERSION, L_SDK_VERSION, M_SDK_VERSION));
+            S_SDK_VERSION,
+            ImmutableSet.of(LOWEST_SDK_VERSION, L_SDK_VERSION, M_SDK_VERSION, S2_V2_SDK_VERSION));
+    VariantTargeting sv2SplitVariantTargeting =
+        variantSdkTargeting(
+            S2_V2_SDK_VERSION,
+            ImmutableSet.of(LOWEST_SDK_VERSION, L_SDK_VERSION, M_SDK_VERSION, S_SDK_VERSION));
 
     assertThat(splitVariantsByTargeting.keySet())
-        .containsExactly(lSplitVariantTargeting, mSplitVariantTargeting, sSplitVariantTargeting);
+        .containsExactly(
+            lSplitVariantTargeting,
+            mSplitVariantTargeting,
+            sSplitVariantTargeting,
+            sv2SplitVariantTargeting);
     assertThat(
             ImmutableSet.builder()
                 .addAll(apkNamesInVariant(splitVariantsByTargeting.get(lSplitVariantTargeting)))
                 .addAll(apkNamesInVariant(splitVariantsByTargeting.get(mSplitVariantTargeting)))
                 .addAll(apkNamesInVariant(splitVariantsByTargeting.get(sSplitVariantTargeting)))
+                .addAll(apkNamesInVariant(splitVariantsByTargeting.get(sv2SplitVariantTargeting)))
                 .build())
-        // for uncompressed dex variant (sdk 31) we don't have "base-x86_3.apk" because it is the
-        // same as "base-x86_2.apk" with  uncompressed native libs
         .containsExactly(
             "base-master.apk",
             "base-x86.apk",
             "base-master_2.apk",
             "base-x86_2.apk",
-            "base-master_3.apk");
+            "base-master_3.apk",
+            "base-x86_3.apk",
+            "base-master_4.apk",
+            "base-x86_4.apk");
   }
 
   @Test
@@ -6084,7 +6357,7 @@ public class BuildApksManagerTest {
     ZipFile apkSetFile = openZipFile(outputFilePath.toFile());
     BuildApksResult result = extractTocFromApkSetFile(apkSetFile, outputDir);
 
-    assertThat(splitApkVariants(result)).hasSize(2);
+    assertThat(splitApkVariants(result)).hasSize(3);
     ImmutableList<Variant> splitApkVariants = splitApkVariants(result);
 
     Variant lVariant =
@@ -6109,12 +6382,26 @@ public class BuildApksManagerTest {
                         .contains(S_SDK_VERSION))
             .findFirst()
             .get();
+    Variant sv2Variant =
+        splitApkVariants.stream()
+            .filter(
+                variant ->
+                    variant
+                        .getTargeting()
+                        .getSdkVersionTargeting()
+                        .getValueList()
+                        .contains(S2_V2_SDK_VERSION))
+            .findFirst()
+            .get();
     assertThat(lVariant.getApkSetList()).hasSize(1);
     assertThat(apkNamesInVariant(lVariant))
         .containsExactly("base-master.apk", "base-es.apk", "base-other_lang.apk");
     assertThat(sVariant.getApkSetList()).hasSize(1);
     assertThat(apkNamesInVariant(sVariant))
-        .containsExactly("base-master_2.apk", "base-es.apk", "base-other_lang.apk");
+        .containsExactly("base-master_2.apk", "base-es_2.apk", "base-other_lang_2.apk");
+    assertThat(sv2Variant.getApkSetList()).hasSize(1);
+    assertThat(apkNamesInVariant(sv2Variant))
+        .containsExactly("base-master_3.apk", "base-es_3.apk", "base-other_lang_3.apk");
   }
 
   @Test
@@ -6208,17 +6495,21 @@ public class BuildApksManagerTest {
     ImmutableList<Variant> splitApkVariants = splitApkVariants(result);
     ImmutableList<ApkDescription> splitApks = apkDescriptions(splitApkVariants);
 
-    assertThat(splitApkVariants(result)).hasSize(1);
-    Variant splitApkVariant = splitApkVariants(result).get(0);
-
-    // Check that apks for ETC1 and "Other TCF" have been created
-    assertThat(splitApkVariant.getApkSetList()).hasSize(1);
+    assertThat(splitApkVariants(result)).hasSize(2);
+    for (Variant splitApkVariant : splitApkVariants(result)) {
+      // Check that apks for ETC1 and "Other TCF" have been created
+      assertThat(splitApkVariant.getApkSetList()).hasSize(1);
+    }
     ImmutableList<ApkDescription> tcfSplits =
         splitApks.stream()
             .filter(apkDesc -> apkDesc.getTargeting().hasTextureCompressionFormatTargeting())
             .collect(toImmutableList());
     assertThat(apkNamesInApkDescriptions(tcfSplits))
-        .containsExactly("base-other_tcf.apk", "base-etc1_rgb8.apk");
+        .containsExactly(
+            "base-other_tcf.apk",
+            "base-etc1_rgb8.apk",
+            "base-other_tcf_2.apk",
+            "base-etc1_rgb8_2.apk");
 
     // Check the content of the apks
     for (ApkDescription split : tcfSplits) {
@@ -6278,6 +6569,7 @@ public class BuildApksManagerTest {
                         /* negate= */ false,
                         /* stripSuffix= */ true,
                         /* defaultSuffix= */ "etc1")
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -6523,6 +6815,7 @@ public class BuildApksManagerTest {
                         /* negate= */ !tcfSplittingEnabled,
                         /* stripSuffix= */ stripTargetingSuffixEnabled,
                         /* defaultSuffix= */ "etc1")
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     return createAndStoreBundle(appBundle);
@@ -6560,6 +6853,7 @@ public class BuildApksManagerTest {
                         /* negate= */ false,
                         /* stripSuffix= */ false,
                         /* defaultSuffix= */ "0")
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
     TestComponent.useTestModule(
@@ -6857,6 +7151,7 @@ public class BuildApksManagerTest {
                         /* negate= */ false,
                         /* stripSuffix= */ false,
                         /* defaultSuffix= */ "a")
+                    .setInjectMinSdkDisabled()
                     .build())
             .addMetadataFile(
                 BUNDLETOOL_NAMESPACE, DEVICE_GROUP_CONFIG_JSON_FILE_NAME, testConfigJson)
@@ -7502,7 +7797,7 @@ public class BuildApksManagerTest {
     assertThat(apkSetFile).hasFile(apkSet.getApkDescription(0).getPath());
 
     // split apk also exists and has isInstant set on the module level.
-    assertThat(splitApkVariants(result)).hasSize(2);
+    assertThat(splitApkVariants(result)).hasSize(3);
     ImmutableList<Variant> variants = splitApkVariants(result);
     for (Variant nonInstantVariant : variants) {
       assertThat(nonInstantVariant.getApkSetList()).hasSize(1);
@@ -7984,7 +8279,7 @@ public class BuildApksManagerTest {
                     apk.getSplitApkMetadata().getSplitId().isEmpty()
                         && apk.getSplitApkMetadata().getIsMasterSplit())
             .collect(toImmutableList());
-    assertThat(mainSplitsOfBaseModule).hasSize(3);
+    assertThat(mainSplitsOfBaseModule).hasSize(4);
     for (ApkDescription apk : mainSplitsOfBaseModule) {
       ZipFile zipFile = openZipFile(extractFromApkSetFile(apkSetFile, apk.getPath(), outputDir));
       assertThat(filesUnderPath(zipFile, ZipPath.create("META-INF")))
@@ -7996,7 +8291,7 @@ public class BuildApksManagerTest {
         splitApks.stream()
             .filter(apk -> !apk.getSplitApkMetadata().getSplitId().isEmpty())
             .collect(toImmutableList());
-    assertThat(otherSplits).hasSize(6);
+    assertThat(otherSplits).hasSize(8);
     for (ApkDescription apk : otherSplits) {
       ZipFile zipFile = openZipFile(extractFromApkSetFile(apkSetFile, apk.getPath(), outputDir));
       assertThat(filesUnderPath(zipFile, ZipPath.create("META-INF"))).isEmpty();
@@ -8158,15 +8453,19 @@ public class BuildApksManagerTest {
     ZipFile apkSetFile = openZipFile(outputFilePath.toFile());
     BuildApksResult result = extractTocFromApkSetFile(apkSetFile, outputDir);
 
-    assertThat(result.getVariantList()).hasSize(2);
+    assertThat(result.getVariantList()).hasSize(3);
     ImmutableList<Variant> sortedVariantList =
         ImmutableList.sortedCopyOf(comparing(Variant::getVariantNumber), result.getVariantList());
     Variant nonSdkRuntimeVariant = sortedVariantList.get(0);
     assertThat(nonSdkRuntimeVariant.getVariantNumber()).isEqualTo(0);
     assertThat(nonSdkRuntimeVariant.getTargeting())
-        .isEqualTo(variantSdkTargeting(ANDROID_L_API_VERSION));
-    Variant sdkRuntimeVariant = sortedVariantList.get(1);
-    assertThat(sdkRuntimeVariant.getVariantNumber()).isEqualTo(1);
+        .isEqualTo(variantSdkTargeting(L_SDK_VERSION, ImmutableSet.of(S2_V2_SDK_VERSION)));
+    Variant sparseEncodedVariant = sortedVariantList.get(1);
+    assertThat(sparseEncodedVariant.getVariantNumber()).isEqualTo(1);
+    assertThat(sparseEncodedVariant.getTargeting())
+        .isEqualTo(variantSdkTargeting(S2_V2_SDK_VERSION, ImmutableSet.of(L_SDK_VERSION)));
+    Variant sdkRuntimeVariant = sortedVariantList.get(2);
+    assertThat(sdkRuntimeVariant.getVariantNumber()).isEqualTo(2);
     assertThat(sdkRuntimeVariant.getTargeting())
         .isEqualTo(
             sdkRuntimeVariantTargeting(ANDROID_U_API_VERSION).toBuilder()
@@ -8384,6 +8683,36 @@ public class BuildApksManagerTest {
           .testModule(testModule)
           .build()
           .inject(testInstance);
+    }
+  }
+
+  @AutoValue
+  abstract static class VariantAndApkSet {
+    public abstract int variantNumber();
+    public abstract ApkSet apkSet();
+    public static VariantAndApkSet.Builder builder() {
+      return new AutoValue_BuildApksManagerTest_VariantAndApkSet.Builder();
+    }
+    @AutoValue.Builder
+    abstract static class Builder {
+      public abstract Builder setVariantNumber(int value);
+      public abstract Builder setApkSet(ApkSet value);
+      public abstract VariantAndApkSet build();
+    }
+  }
+
+  @AutoValue
+  abstract static class VariantAndApkDescription {
+    public abstract int variantNumber();
+    public abstract ApkDescription apkDescription();
+    public static VariantAndApkDescription.Builder builder() {
+      return new AutoValue_BuildApksManagerTest_VariantAndApkDescription.Builder();
+    }
+    @AutoValue.Builder
+    abstract static class Builder {
+      public abstract Builder setVariantNumber(int value);
+      public abstract Builder setApkDescription(ApkDescription value);
+      public abstract VariantAndApkDescription build();
     }
   }
 }

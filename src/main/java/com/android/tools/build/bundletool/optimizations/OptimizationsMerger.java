@@ -20,6 +20,8 @@ import static com.android.bundle.Config.SplitDimension.Value.UNSPECIFIED_VALUE;
 
 import com.android.bundle.Config.BundleConfig;
 import com.android.bundle.Config.Optimizations;
+import com.android.bundle.Config.Optimizations.InjectMinSdkSetting;
+import com.android.bundle.Config.ResourceOptimizations.SparseEncoding;
 import com.android.bundle.Config.SplitDimension;
 import com.android.bundle.Config.SplitDimension.Value;
 import com.android.bundle.Config.SuffixStripping;
@@ -127,6 +129,28 @@ public final class OptimizationsMerger {
         getSuffixStrippings(
             bundleConfig.getOptimizations().getSplitsConfig().getSplitDimensionList());
 
+    boolean injectMinSdk;
+    InjectMinSdkSetting injectMinSdkSetting = requestedOptimizations.getInjectMinSdkSetting();
+    if (injectMinSdkSetting.equals(InjectMinSdkSetting.DISABLED)) {
+      injectMinSdk = false;
+    } else {
+      injectMinSdk =
+          defaultOptimizations.getInjectMinSdk()
+              || injectMinSdkSetting.equals(InjectMinSdkSetting.ENABLED)
+              || requestedOptimizations.getInjectMinSdk();
+    }
+
+    boolean enableSparseEncoding;
+    SparseEncoding requestedEncoding =
+        requestedOptimizations.getResourceOptimizations().getSparseEncoding();
+    if (requestedEncoding.equals(SparseEncoding.DISABLED)) {
+      enableSparseEncoding = false;
+    } else {
+      enableSparseEncoding =
+          defaultOptimizations.getEnableSparseEncoding()
+              || requestedEncoding.equals(SparseEncoding.VARIANT_FOR_SDK_32);
+    }
+
     return ApkOptimizations.builder()
         .setSplitDimensions(splitDimensions)
         .setUncompressNativeLibraries(uncompressNativeLibraries)
@@ -135,6 +159,8 @@ public final class OptimizationsMerger {
         .setUncompressedDexTargetSdk(uncompressedDexTargetSdk)
         .setStandaloneDimensions(standaloneDimensions)
         .setSuffixStrippings(suffixStrippings)
+        .setInjectMinSdk(injectMinSdk)
+        .setEnableSparseEncoding(enableSparseEncoding)
         .build();
   }
 

@@ -3042,30 +3042,45 @@ public class BuildApksCommandTest {
   // native splits cannot be shared between variants.
   @Test
   public void buildApks_injectMinSdk_createsMoreSplitApks() throws Exception {
-    Path outputWithoutInjection = tmpDir.resolve("noInject.apks");
+    Path bundlePathWithInjection = tmpDir.resolve("bundle_inject.aab");
+    Path bundlePathWithoutInjection = tmpDir.resolve("bundle_no_inject.aab");
     Path outputWithInjection = tmpDir.resolve("inject.apks");
-    AppBundleBuilder appBundle =
-        new AppBundleBuilder()
-            .setBundleConfig(BundleConfigBuilder.create().addSplitDimension(Value.ABI).build())
-            .addModule("base", this::buildModuleWithDexAndNativeLib);
-    createAppBundle(bundlePath, appBundle.build());
+    Path outputWithoutInjection = tmpDir.resolve("noInject.apks");
     ByteArrayOutputStream output = new ByteArrayOutputStream();
-
+    AppBundleBuilder appBundleWithInjection =
+        new AppBundleBuilder()
+            .setBundleConfig(
+                BundleConfigBuilder.create()
+                    .addSplitDimension(Value.ABI)
+                    .setSparseEncodingDisabled()
+                    .build())
+            .addModule("base", this::buildModuleWithDexAndNativeLib);
+    createAppBundle(bundlePathWithInjection, appBundleWithInjection.build());
     BuildApksCommand.fromFlags(
             new FlagParser()
                 .parse(
-                    "--bundle=" + bundlePath,
+                    "--bundle=" + bundlePathWithInjection,
                     "--output=" + outputWithInjection,
-                    "--aapt2=" + AAPT2_PATH,
-                    "--inject-min-sdk"),
+                    "--aapt2=" + AAPT2_PATH),
             new PrintStream(output),
             systemEnvironmentProvider,
             fakeAdbServer)
         .execute();
+
+    AppBundleBuilder appBundleWithoutInjection =
+        new AppBundleBuilder()
+            .setBundleConfig(
+                BundleConfigBuilder.create()
+                    .addSplitDimension(Value.ABI)
+                    .setSparseEncodingDisabled()
+                    .setInjectMinSdkDisabled()
+                    .build())
+            .addModule("base", this::buildModuleWithDexAndNativeLib);
+    createAppBundle(bundlePathWithoutInjection, appBundleWithoutInjection.build());
     BuildApksCommand.fromFlags(
             new FlagParser()
                 .parse(
-                    "--bundle=" + bundlePath,
+                    "--bundle=" + bundlePathWithoutInjection,
                     "--output=" + outputWithoutInjection,
                     "--aapt2=" + AAPT2_PATH),
             new PrintStream(output),

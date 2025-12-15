@@ -65,9 +65,9 @@ public class PackageSubject extends Subject {
   public EntrySubject hasResource(String resourceName) {
     checkArgument(
         RESOURCE_PATTERN.matcher(resourceName).matches(),
-        String.format(
-            "Resource needs to follow pattern: %s but looks like %s",
-            RESOURCE_PATTERN.pattern(), resourceName));
+        "Resource needs to follow pattern: %s but looks like %s",
+        RESOURCE_PATTERN.pattern(),
+        resourceName);
     String[] parts = resourceName.split("/");
     checkState(
         parts.length == 2,
@@ -84,9 +84,9 @@ public class PackageSubject extends Subject {
   public void hasNoResource(String resourceName) {
     checkArgument(
         RESOURCE_PATTERN.matcher(resourceName).matches(),
-        String.format(
-            "Resource needs to follow pattern: %s but looks like %s",
-            RESOURCE_PATTERN.pattern(), resourceName));
+        "Resource needs to follow pattern: %s but looks like %s",
+        RESOURCE_PATTERN.pattern(),
+        resourceName);
     String[] parts = resourceName.split("/");
     checkState(
         parts.length == 2,

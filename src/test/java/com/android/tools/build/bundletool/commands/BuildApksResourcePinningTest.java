@@ -157,6 +157,7 @@ public class BuildApksResourcePinningTest {
                 BundleConfigBuilder.create()
                     .addResourcePinnedToMasterSplit(0x7f020000) // image1 from "base" module
                     .addResourcePinnedToMasterSplit(0x80010001) // image4 from "feature" module
+                    .setInjectMinSdkDisabled()
                     .build())
             .build();
 

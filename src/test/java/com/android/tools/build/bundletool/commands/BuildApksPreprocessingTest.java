@@ -144,7 +144,10 @@ public final class BuildApksPreprocessingTest {
                                 targetedNativeDirectory(
                                     "lib/arm64-v8a", nativeDirectoryTargeting(ARM64_V8A)))))
             .setBundleConfig(
-                BundleConfigBuilder.create().setUncompressNativeLibraries(false).build())
+                BundleConfigBuilder.create()
+                    .setUncompressNativeLibraries(false)
+                    .setInjectMinSdkDisabled()
+                    .build())
             .build();
     new AppBundleSerializer().writeToDisk(appBundle, bundlePath);
 

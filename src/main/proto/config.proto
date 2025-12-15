@@ -91,6 +91,15 @@ message MasterResources {
 }
 
 message Optimizations {
+  enum InjectMinSdkSetting {
+    // Unspecified inject min SDK setting.
+    UNSPECIFIED = 0;
+    // Disables injecting min SDK into the manifests of split APKs
+    DISABLED = 1;
+    // Enables injecting min SDK into the manifests of split APKs
+    ENABLED = 2;
+  }
+
   SplitsConfig splits_config = 1;
   // This is for uncompressing native libraries on M+ devices (L+ devices on
   // instant apps).
@@ -109,7 +118,11 @@ message Optimizations {
   StoreArchive store_archive = 6;
 
   // Whether to inject minSdkVersion into the manifests of split APKs.
-  bool inject_min_sdk = 7;
+  // Deprecated: use inject_min_sdk_setting instead
+  bool inject_min_sdk = 7 [deprecated = true];
+
+  // Whether to inject minSdkVersion into the manifests of split APKs.
+  InjectMinSdkSetting inject_min_sdk_setting = 8;
 }
 
 message ResourceOptimizations {
@@ -120,12 +133,14 @@ message ResourceOptimizations {
     reserved 1;
     reserved "ENFORCED";
 
-    // Disables sparse encoding.
+    // Unspecified sparse encoding.
     UNSPECIFIED = 0;
-    // Generates special APKs for Android SDK +32 with sparse resource tables.
-    // Devices with Android SDK below 32 will still receive APKs with regular
-    // resource tables.
+    // This leads to a reduction in APK size, memory usage, and startup latency,
+    // and a small increase in individual resource lookup time after startup.
+    // Only applies sparse encoding if minSdk of the APK is >= 32
     VARIANT_FOR_SDK_32 = 2;
+    // Disables sparse encoding for all Android SDKs.
+    DISABLED = 3;
   }
 
   // Pair of resource type and name, like 'layout/foo', 'string/bar'.
@@ -165,9 +180,9 @@ message ResourceOptimizations {
     bool deduplicate_resource_entries = 3;
   }
 
-  // Whether to use sparse encoding for resource tables.
-  // Resources in sparse resource table are accessed using a binary search tree.
-  // This decreases APK size at the cost of resource retrieval performance.
+  // This leads to a reduction in APK size, memory usage, and startup latency,
+  // and a small increase in individual resource lookup time after startup.
+  // Only applies sparse encoding if minSdk of the APK is >= 32
   SparseEncoding sparse_encoding = 1;
 
   // Optimizations related to collapsed resource names.

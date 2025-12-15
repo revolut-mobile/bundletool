@@ -170,6 +170,27 @@ public abstract class ApkOptimizations {
                       // UNSPECIFIED here means SDK 29+ (Android Q+)
                       .setUncompressedDexTargetSdk(UncompressedDexTargetSdk.UNSPECIFIED)
                       .build())
+              .put(
+                  Version.of("1.18.3"),
+                  ApkOptimizations.builder()
+                      .setSplitDimensions(
+                          ImmutableSet.of(
+                              ABI,
+                              SCREEN_DENSITY,
+                              TEXTURE_COMPRESSION_FORMAT,
+                              LANGUAGE,
+                              DEVICE_TIER,
+                              DEVICE_GROUP,
+                              COUNTRY_SET))
+                      .setUncompressNativeLibraries(true)
+                      .setPageAlignment(PageAlignment.PAGE_ALIGNMENT_16K)
+                      .setStandaloneDimensions(ImmutableSet.of(ABI, SCREEN_DENSITY))
+                      .setUncompressDexFiles(true)
+                      // UNSPECIFIED here means SDK 29+ (Android Q+)
+                      .setUncompressedDexTargetSdk(UncompressedDexTargetSdk.UNSPECIFIED)
+                      .setInjectMinSdk(true)
+                      .setEnableSparseEncoding(true)
+                      .build())
               .buildOrThrow();
 
   /** List of dimensions supported by asset modules. */
@@ -195,6 +216,10 @@ public abstract class ApkOptimizations {
 
   public abstract ImmutableMap<OptimizationDimension, SuffixStripping> getSuffixStrippings();
 
+  public abstract boolean getInjectMinSdk();
+
+  public abstract boolean getEnableSparseEncoding();
+
   public abstract Builder toBuilder();
 
   public static Builder builder() {
@@ -203,7 +228,9 @@ public abstract class ApkOptimizations {
         .setUncompressDexFiles(false)
         .setUncompressedDexTargetSdk(UncompressedDexTargetSdk.UNSPECIFIED)
         .setPageAlignment(PageAlignment.PAGE_ALIGNMENT_UNSPECIFIED)
-        .setSuffixStrippings(ImmutableMap.of());
+        .setSuffixStrippings(ImmutableMap.of())
+        .setInjectMinSdk(false)
+        .setEnableSparseEncoding(false);
   }
 
   /** Builder for the {@link ApkOptimizations} class. */
@@ -225,6 +252,10 @@ public abstract class ApkOptimizations {
 
     public abstract Builder setSuffixStrippings(
         ImmutableMap<OptimizationDimension, SuffixStripping> suffixStrippings);
+
+    public abstract Builder setInjectMinSdk(boolean enable);
+
+    public abstract Builder setEnableSparseEncoding(boolean enable);
 
     public abstract ApkOptimizations build();
   }

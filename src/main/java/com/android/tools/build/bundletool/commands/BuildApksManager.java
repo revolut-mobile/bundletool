@@ -25,7 +25,6 @@ import static com.google.common.collect.ImmutableSet.toImmutableSet;
 
 import com.android.bundle.Commands.LocalTestingInfo;
 import com.android.bundle.Config.BundleConfig;
-import com.android.bundle.Config.ResourceOptimizations.SparseEncoding;
 import com.android.bundle.Config.StandaloneConfig.FeatureModulesMode;
 import com.android.bundle.Config.UncompressDexFiles;
 import com.android.bundle.Devices.DeviceSpec;
@@ -261,6 +260,8 @@ public final class BuildApksManager {
             // We can't enable this splitter for instant APKs, as currently they
             // only support one variant.
             .setEnableDexCompressionSplitter(false)
+            // Similarly, disable sparse encoding for instant APKs.
+            .setEnableSparseEncodingVariant(false)
             .build();
     return splitApksGenerator.generateSplits(instantModules, instantApkGenerationConfiguration);
   }
@@ -330,13 +331,12 @@ public final class BuildApksManager {
         apkOptimizations.getUncompressNativeLibraries());
     setEnableUncompressedDexOptimization(appBundle, apkGenerationConfiguration);
 
+    boolean injectMinSdk = command.getInjectMinSdk() || apkOptimizations.getInjectMinSdk();
+    apkGenerationConfiguration.setInjectMinSdk(injectMinSdk);
+    // Sparse encoding is only allowed when inject-min-sdk is enabled as well
     apkGenerationConfiguration.setEnableSparseEncodingVariant(
-        command.getEnableSparseEncoding()
-            || bundleConfig
-                .getOptimizations()
-                .getResourceOptimizations()
-                .getSparseEncoding()
-                .equals(SparseEncoding.VARIANT_FOR_SDK_32));
+        injectMinSdk
+            && (command.getEnableSparseEncoding() || apkOptimizations.getEnableSparseEncoding()));
 
     apkGenerationConfiguration.setInstallableOnExternalStorage(
         appBundle
@@ -360,8 +360,6 @@ public final class BuildApksManager {
 
     apkGenerationConfiguration.setEnableBaseModuleMinSdkAsDefaultTargeting(
         command.getEnableBaseModuleMinSdkAsDefaultTargeting());
-    apkGenerationConfiguration.setInjectMinSdk(
-        command.getInjectMinSdk() || bundleConfig.getOptimizations().getInjectMinSdk());
 
     command
         .getMinSdkForAdditionalVariantWithV3Rotation()
