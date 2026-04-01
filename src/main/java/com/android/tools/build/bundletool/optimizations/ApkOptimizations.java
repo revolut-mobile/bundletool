@@ -191,6 +191,27 @@ public abstract class ApkOptimizations {
                       .setInjectMinSdk(true)
                       .setEnableSparseEncoding(true)
                       .build())
+              .put(
+                  Version.of("1.18.4"),
+                  ApkOptimizations.builder()
+                      .setSplitDimensions(
+                          ImmutableSet.of(
+                              ABI,
+                              SCREEN_DENSITY,
+                              TEXTURE_COMPRESSION_FORMAT,
+                              LANGUAGE,
+                              DEVICE_TIER,
+                              DEVICE_GROUP,
+                              COUNTRY_SET))
+                      .setUncompressNativeLibraries(true)
+                      .setPageAlignment(PageAlignment.PAGE_ALIGNMENT_16K)
+                      .setStandaloneDimensions(ImmutableSet.of(ABI, SCREEN_DENSITY))
+                      .setUncompressDexFiles(true)
+                      // UNSPECIFIED here means SDK 29+ (Android Q+)
+                      .setUncompressedDexTargetSdk(UncompressedDexTargetSdk.UNSPECIFIED)
+                      .setInjectMinSdk(true)
+                      .setEnableSparseEncoding(true)
+                      .build())
               .buildOrThrow();
 
   /** List of dimensions supported by asset modules. */
