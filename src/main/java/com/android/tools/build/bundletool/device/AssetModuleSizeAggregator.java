@@ -130,6 +130,7 @@ public class AssetModuleSizeAggregator extends AbstractSizeAggregator {
                 countrySetTargeting,
                 sdkRuntimeTargeting),
             getSizeRequest.getModules(),
+            getSizeRequest.getModulesResolutionMode(),
             /* includeInstallTimeAssetModules= */ !getSizeRequest.getModules().isPresent(),
             getSizeRequest.getInstant(),
             /* ensureDensityAndAbiApksMatched= */ false)

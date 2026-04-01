@@ -40,6 +40,7 @@ import com.android.tools.build.bundletool.flags.Flag;
 import com.android.tools.build.bundletool.flags.ParsedFlags;
 import com.android.tools.build.bundletool.model.ConfigurationSizes;
 import com.android.tools.build.bundletool.model.GetSizeRequest;
+import com.android.tools.build.bundletool.model.ModulesResolutionMode;
 import com.android.tools.build.bundletool.model.SizeConfiguration;
 import com.android.tools.build.bundletool.model.exceptions.InvalidCommandException;
 import com.android.tools.build.bundletool.model.utils.ConfigurationSizesMerger;
@@ -66,7 +67,8 @@ public abstract class GetSizeCommand implements GetSizeRequest {
 
   /** Sub commands supported on {@link GetSizeCommand}. */
   public enum GetSizeSubcommand {
-    TOTAL("total");
+    TOTAL("total"),
+    EXACT("exact");
 
     static final ImmutableMap<String, GetSizeSubcommand> STRING_TO_SUBCOMMAND =
         Arrays.stream(GetSizeSubcommand.values())
@@ -139,6 +141,13 @@ public abstract class GetSizeCommand implements GetSizeRequest {
   /** Gets whether to format sizes to human readable units. */
   public abstract boolean getHumanReadableSizes();
 
+  @Override
+  public ModulesResolutionMode getModulesResolutionMode() {
+    return getGetSizeSubCommand() == GetSizeSubcommand.EXACT
+        ? ModulesResolutionMode.EXACT
+        : ModulesResolutionMode.TOTAL;
+  }
+
   public static Builder builder() {
     return new AutoValue_GetSizeCommand.Builder()
         .setDeviceSpec(DeviceSpec.getDefaultInstance())
@@ -196,11 +205,18 @@ public abstract class GetSizeCommand implements GetSizeRequest {
             .map(DeviceSpecParser::parsePartialDeviceSpec)
             .orElse(DeviceSpec.getDefaultInstance());
 
+    GetSizeSubcommand subCommand = parseGetSizeSubCommand(flags);
+    if (subCommand == GetSizeSubcommand.EXACT && !modules.isPresent()) {
+      throw InvalidCommandException.builder()
+          .withInternalMessage("Flag --modules is required for 'exact' size estimation")
+          .build();
+    }
+
     GetSizeCommand.Builder command =
         builder()
             .setApksArchivePath(apksArchivePath)
             .setDeviceSpec(deviceSpec)
-            .setGetSizeSubCommand(parseGetSizeSubCommand(flags));
+            .setGetSizeSubCommand(subCommand);
 
     modules.ifPresent(command::setModules);
 
@@ -232,8 +248,11 @@ public abstract class GetSizeCommand implements GetSizeRequest {
   public void execute() {
     switch (getGetSizeSubCommand()) {
       case TOTAL:
+      case EXACT:
         getSizeTotal(System.out);
         break;
+      default:
+        throw new AssertionError("Unhandled subcommand: " + getGetSizeSubCommand());
     }
   }
 

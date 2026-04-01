@@ -49,4 +49,6 @@ public interface GetSizeRequest {
 
   /** Gets whether instant APKs should be used for size calculation. */
   boolean getInstant();
+
+  ModulesResolutionMode getModulesResolutionMode();
 }

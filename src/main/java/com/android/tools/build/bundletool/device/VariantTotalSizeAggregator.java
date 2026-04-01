@@ -95,6 +95,7 @@ public class VariantTotalSizeAggregator extends AbstractSizeAggregator {
                 countrySetTargeting,
                 sdkRuntimeTargeting),
             getSizeRequest.getModules(),
+            getSizeRequest.getModulesResolutionMode(),
             /* includeInstallTimeAssetModules= */ false,
             getSizeRequest.getInstant(),
             /* ensureDensityAndAbiApksMatched= */ false)
