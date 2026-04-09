@@ -1,0 +1,40 @@
+name: Publish release JAR
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to upload release assets
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(grep 'release_version' gradle.properties | sed 's/.*=\s*//')
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build executable jar
+        run: ./gradlew executableJar
+
+      - name: Rename JAR with version
+        run: mv build/libs/bundletool-all.jar "build/libs/bundletool-all-${VERSION}.jar"
+
+      - name: Upload JAR to release
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "build/libs/bundletool-all-${VERSION}.jar" \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
