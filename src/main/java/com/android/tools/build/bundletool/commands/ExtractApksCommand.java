@@ -44,6 +44,7 @@ import com.android.tools.build.bundletool.device.DeviceSpecParser;
 import com.android.tools.build.bundletool.flags.Flag;
 import com.android.tools.build.bundletool.flags.ParsedFlags;
 import com.android.tools.build.bundletool.model.AndroidManifest;
+import com.android.tools.build.bundletool.model.ModulesResolutionMode;
 import com.android.tools.build.bundletool.model.exceptions.IncompatibleDeviceException;
 import com.android.tools.build.bundletool.model.exceptions.InvalidCommandException;
 import com.android.tools.build.bundletool.model.utils.FileNames;
@@ -213,6 +214,7 @@ public abstract class ExtractApksCommand {
         new ApkMatcher(
             deviceSpec,
             requestedModuleNames,
+            ModulesResolutionMode.TOTAL,
             getIncludeInstallTimeAssetModules(),
             getInstant(),
             /* ensureDensityAndAbiApksMatched= */ true);

@@ -34,6 +34,7 @@ import com.android.bundle.Commands.Variant;
 import com.android.bundle.Devices.DeviceSpec;
 import com.android.bundle.Targeting.ApkTargeting;
 import com.android.tools.build.bundletool.model.ModuleSplit;
+import com.android.tools.build.bundletool.model.ModulesResolutionMode;
 import com.android.tools.build.bundletool.model.OptimizationDimension;
 import com.android.tools.build.bundletool.model.ZipPath;
 import com.android.tools.build.bundletool.model.exceptions.IncompatibleDeviceException;
@@ -54,6 +55,7 @@ public class ApkMatcher {
   private final ImmutableList<? extends TargetingDimensionMatcher<?>> apkMatchers;
 
   private final Optional<ImmutableSet<String>> requestedModuleNames;
+  private final ModulesResolutionMode modulesResolutionMode;
   private final boolean matchInstant;
   private final boolean includeInstallTimeAssetModules;
   private final ModuleMatcher moduleMatcher;
@@ -64,6 +66,7 @@ public class ApkMatcher {
     this(
         deviceSpec,
         Optional.empty(),
+        ModulesResolutionMode.TOTAL,
         /* includeInstallTimeAssetModules= */ true,
         /* matchInstant= */ false,
         /* ensureDensityAndAbiApksMatched= */ false);
@@ -74,6 +77,7 @@ public class ApkMatcher {
    *
    * @param deviceSpec given device configuration
    * @param requestedModuleNames sets of modules to match, all modules if empty
+   * @param modulesResolutionMode controls whether install-time modules are auto-included
    * @param matchInstant when set, matches APKs for instant modules only
    * @param ensureDensityAndAbiApksMatched when set, ensures one density split and/or one ABI split
    *     are matched per each module (if module has such splits) and throws
@@ -82,12 +86,16 @@ public class ApkMatcher {
   public ApkMatcher(
       DeviceSpec deviceSpec,
       Optional<ImmutableSet<String>> requestedModuleNames,
+      ModulesResolutionMode modulesResolutionMode,
       boolean includeInstallTimeAssetModules,
       boolean matchInstant,
       boolean ensureDensityAndAbiApksMatched) {
     checkArgument(
         !requestedModuleNames.isPresent() || !requestedModuleNames.get().isEmpty(),
         "Set of requested split modules cannot be empty.");
+    checkArgument(
+        modulesResolutionMode != ModulesResolutionMode.EXACT || requestedModuleNames.isPresent(),
+        "EXACT resolution mode requires modules to be specified.");
     SdkVersionMatcher sdkVersionMatcher = new SdkVersionMatcher(deviceSpec);
     AbiMatcher abiMatcher = new AbiMatcher(deviceSpec);
     MultiAbiMatcher multiAbiMatcher = new MultiAbiMatcher(deviceSpec);
@@ -114,6 +122,7 @@ public class ApkMatcher {
             deviceTierApkMatcher,
             countrySetApkMatcher);
     this.requestedModuleNames = requestedModuleNames;
+    this.modulesResolutionMode = modulesResolutionMode;
     this.includeInstallTimeAssetModules = includeInstallTimeAssetModules;
     this.matchInstant = matchInstant;
     this.ensureDensityAndAbiApksMatched = ensureDensityAndAbiApksMatched;
@@ -165,7 +174,7 @@ public class ApkMatcher {
     ImmutableSet<String> modulesToMatch =
         matchInstant
             ? getRequestedInstantModulesWithDependencies(variant)
-            : getInstallTimeAndRequestedModulesWithDependencies(variant, bundleVersion);
+            : getRequestedModules(variant, bundleVersion);
 
     return variant.getApkSetList().stream()
         .filter(apkSet -> modulesToMatch.contains(apkSet.getModuleMetadata().getName()))
@@ -231,11 +240,17 @@ public class ApkMatcher {
           .map(apkSet -> apkSet.getModuleMetadata().getName())
           .collect(toImmutableSet());
     }
+    if (modulesResolutionMode == ModulesResolutionMode.EXACT) {
+        return requestedModuleNames.get();
+    }
     return getModulesIncludingDependencies(variant, requestedModuleNames.get());
   }
 
-  private ImmutableSet<String> getInstallTimeAndRequestedModulesWithDependencies(
+  private ImmutableSet<String> getRequestedModules(
       Variant variant, Version bundleVersion) {
+    if (modulesResolutionMode == ModulesResolutionMode.EXACT) {
+        return requestedModuleNames.get();
+    }
     ImmutableSet<String> installTimeModules =
         buildModulesDeliveredInstallTime(variant, bundleVersion);
     ImmutableSet<String> explicitlyRequested = requestedModuleNames.orElse(ImmutableSet.of());
