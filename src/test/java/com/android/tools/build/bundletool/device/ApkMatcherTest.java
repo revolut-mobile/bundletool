@@ -99,6 +99,7 @@ import com.android.tools.build.bundletool.model.AndroidManifest;
 import com.android.tools.build.bundletool.model.BundleModuleName;
 import com.android.tools.build.bundletool.model.ModuleSplit;
 import com.android.tools.build.bundletool.model.ModuleSplit.SplitType;
+import com.android.tools.build.bundletool.model.ModulesResolutionMode;
 import com.android.tools.build.bundletool.model.ZipPath;
 import com.android.tools.build.bundletool.model.exceptions.IncompatibleDeviceException;
 import com.android.tools.build.bundletool.model.exceptions.InvalidCommandException;
@@ -1758,6 +1759,18 @@ public class ApkMatcherTest {
             matchedApk(installTimeMasterApk1, installTimeModule1, INSTALL_TIME),
             matchedApk(installTimeEnApk1, installTimeModule1, INSTALL_TIME),
             matchedApk(onDemandMasterApk, onDemandModule, ON_DEMAND));
+
+    assertThat(
+            createExactModulesMatcher(
+                    enDevice, Optional.of(ImmutableSet.of(installTimeModule1, onDemandModule)))
+                    .getMatchingApks(buildApksResult))
+            .containsExactly(
+                    // base has not been specified for the 'exact' modules selection
+                    matchedApk(installTimeMasterApk1, installTimeModule1, INSTALL_TIME),
+                    matchedApk(installTimeEnApk1, installTimeModule1, INSTALL_TIME),
+                    matchedApk(installTimeMasterApk2, installTimeModule2, INSTALL_TIME),
+                    matchedApk(installTimeEnApk2, installTimeModule2, INSTALL_TIME),
+                    matchedApk(onDemandMasterApk, onDemandModule, ON_DEMAND));
   }
 
   @Test
@@ -1869,6 +1882,7 @@ public class ApkMatcherTest {
     return new ApkMatcher(
         spec,
         modules,
+        ModulesResolutionMode.TOTAL,
         /* includeInstallTimeAssetModules= */ true,
         /* matchInstant= */ false,
         /* ensureDensityAndAbiApksMatched= */ false);
@@ -1879,6 +1893,7 @@ public class ApkMatcherTest {
     return new ApkMatcher(
         spec,
         modules,
+        ModulesResolutionMode.TOTAL,
         /* includeInstallTimeAssetModules= */ false,
         /* matchInstant= */ false,
         /* ensureDensityAndAbiApksMatched= */ false);
@@ -1889,6 +1904,7 @@ public class ApkMatcherTest {
     return new ApkMatcher(
         spec,
         modules,
+        ModulesResolutionMode.TOTAL,
         /* includeInstallTimeAssetModules= */ true,
         /* matchInstant= */ true,
         /* ensureDensityAndAbiApksMatched= */ false);
@@ -1899,8 +1915,20 @@ public class ApkMatcherTest {
     return new ApkMatcher(
         spec,
         modules,
+        ModulesResolutionMode.TOTAL,
         /* includeInstallTimeAssetModules= */ true,
         /* matchInstant= */ false,
         /* ensureDensityAndAbiApksMatched= */ true);
+  }
+
+  private static ApkMatcher createExactModulesMatcher(
+          DeviceSpec spec, Optional<ImmutableSet<String>> modules) {
+    return new ApkMatcher(
+            spec,
+            modules,
+            ModulesResolutionMode.EXACT,
+            /* includeInstallTimeAssetModules= */ true,
+            /* matchInstant= */ false,
+            /* ensureDensityAndAbiApksMatched= */ true);
   }
 }

@@ -1810,6 +1810,143 @@ public final class GetSizeCommandTest {
                 "21-", "Not Required", 2 * compressedApkSize, 2 * compressedApkSize));
   }
 
+  @Test
+  public void exactSubcommand_withModules_parsedCorrectly() throws Exception {
+    BuildApksResult tableOfContentsProto = BuildApksResult.getDefaultInstance();
+    Path apksArchiveFile =
+        createApksArchiveFile(tableOfContentsProto, tmpDir.resolve("bundle.apks"));
+
+    GetSizeCommand fromFlags =
+        GetSizeCommand.fromFlags(
+            new FlagParser()
+                .parse("get-size", "exact", "--apks=" + apksArchiveFile, "--modules=base,feature1"));
+
+    GetSizeCommand fromBuilderApi =
+        GetSizeCommand.builder()
+            .setApksArchivePath(apksArchiveFile)
+            .setModules(ImmutableSet.of("base", "feature1"))
+            .setGetSizeSubCommand(GetSizeSubcommand.EXACT)
+            .build();
+
+    assertThat(fromFlags).isEqualTo(fromBuilderApi);
+  }
+
+  @Test
+  public void exactSubcommand_withoutModules_throwsInvalidCommandException() throws Exception {
+    BuildApksResult tableOfContentsProto = BuildApksResult.getDefaultInstance();
+    Path apksArchiveFile =
+        createApksArchiveFile(tableOfContentsProto, tmpDir.resolve("bundle.apks"));
+
+    InvalidCommandException exception =
+        assertThrows(
+            InvalidCommandException.class,
+            () ->
+                GetSizeCommand.fromFlags(
+                    new FlagParser().parse("get-size", "exact", "--apks=" + apksArchiveFile)));
+
+    assertThat(exception).hasMessageThat().contains("--modules is required for 'exact' size estimation");
+  }
+
+  @Test
+  public void getSizeExact_excludesInstallTimeModulesNotExplicitlyRequested() throws Exception {
+    // base is install-time; feature1 is on-demand; feature2 is install-time.
+    Variant lVariant =
+        createVariant(
+            lPlusVariantTargeting(),
+            createSplitApkSet(
+                /* moduleName= */ "base",
+                createMasterApkDescription(
+                    ApkTargeting.getDefaultInstance(), ZipPath.create("base-master.apk"))),
+            createSplitApkSet(
+                /* moduleName= */ "feature1",
+                DeliveryType.ON_DEMAND,
+                /* moduleDependencies= */ ImmutableList.of(),
+                createMasterApkDescription(
+                    ApkTargeting.getDefaultInstance(), ZipPath.create("base-feature1.apk"))),
+            createSplitApkSet(
+                /* moduleName= */ "feature2",
+                DeliveryType.INSTALL_TIME,
+                /* moduleDependencies= */ ImmutableList.of(),
+                createMasterApkDescription(
+                    ApkTargeting.getDefaultInstance(), ZipPath.create("base-feature2.apk"))));
+
+    BuildApksResult tableOfContentsProto =
+        BuildApksResult.newBuilder()
+            .setBundletool(
+                Bundletool.newBuilder()
+                    .setVersion(BundleToolVersion.getCurrentVersion().toString()))
+            .addVariant(lVariant)
+            .build();
+    Path apksArchiveFile =
+        createApksArchiveFile(tableOfContentsProto, tmpDir.resolve("bundle.apks"));
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+    // EXACT with only feature1: install-time base and feature2 are not included.
+    GetSizeCommand.builder()
+        .setGetSizeSubCommand(GetSizeSubcommand.EXACT)
+        .setApksArchivePath(apksArchiveFile)
+        .setModules(ImmutableSet.of("feature1"))
+        .build()
+        .getSizeTotal(new PrintStream(outputStream));
+
+    assertThat(new String(outputStream.toByteArray(), UTF_8))
+        .isEqualTo(
+            "MIN,MAX"
+                + CRLF
+                + String.format("%d,%d", compressedApkSize, compressedApkSize)
+                + CRLF);
+  }
+
+  @Test
+  public void getSizeExact_installTimeAndOnDemandModules() throws Exception {
+    // base is install-time; feature1 is on-demand; feature2 is install-time.
+    Variant lVariant =
+      createVariant(
+          lPlusVariantTargeting(),
+          createSplitApkSet(
+              /* moduleName= */ "base",
+              createMasterApkDescription(
+                  ApkTargeting.getDefaultInstance(), ZipPath.create("base-master.apk"))),
+          createSplitApkSet(
+              /* moduleName= */ "feature1",
+              DeliveryType.ON_DEMAND,
+              /* moduleDependencies= */ ImmutableList.of(),
+              createMasterApkDescription(
+                  ApkTargeting.getDefaultInstance(), ZipPath.create("base-feature1.apk"))),
+          createSplitApkSet(
+              /* moduleName= */ "feature2",
+              DeliveryType.INSTALL_TIME,
+              /* moduleDependencies= */ ImmutableList.of(),
+              createMasterApkDescription(
+                  ApkTargeting.getDefaultInstance(), ZipPath.create("base-feature2.apk"))));
+
+    BuildApksResult tableOfContentsProto =
+        BuildApksResult.newBuilder()
+            .setBundletool(
+                Bundletool.newBuilder()
+                    .setVersion(BundleToolVersion.getCurrentVersion().toString()))
+            .addVariant(lVariant)
+            .build();
+    Path apksArchiveFile =
+        createApksArchiveFile(tableOfContentsProto, tmpDir.resolve("bundle.apks"));
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+    // EXACT with base + feature2
+    GetSizeCommand.builder()
+        .setGetSizeSubCommand(GetSizeSubcommand.EXACT)
+        .setApksArchivePath(apksArchiveFile)
+        .setModules(ImmutableSet.of("base", "feature2"))
+        .build()
+        .getSizeTotal(new PrintStream(outputStream));
+
+    assertThat(new String(outputStream.toByteArray(), UTF_8))
+        .isEqualTo(
+            "MIN,MAX"
+                + CRLF
+                + String.format("%d,%d", 2 * compressedApkSize, 2 * compressedApkSize)
+                + CRLF);
+  }
+
   /** Copies the testdata resource into the temporary directory. */
   private Path copyToTempDir(String testDataPath) throws Exception {
     Path testDataFilename = Paths.get(testDataPath).getFileName();
